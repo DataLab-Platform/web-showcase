@@ -66,7 +66,7 @@ The showcase and DataLab Web share the same origin, hence the same browser stora
 - the notebooks and macros created by `w2` are closed and removed from the "Recent…" lists;
 - the capsule revision recorded by `w3` and the conversation of `w4` are removed from the history of the browser.
 
-Between two demos, the workspace starts afresh (File > New workspace when DataLab Web has it, otherwise DataLab Web is reloaded).
+Between two demos, the workspace starts afresh, as for a visitor: File > New workspace when DataLab Web has it, otherwise DataLab Web is reloaded behind the title card of the next demo (empty, untitled and unmodified workspace, new panels and Python workers; the browser cache makes it a matter of seconds to a few tens of seconds, the boot status being shown on the card).
 
 ## Requirements
 
@@ -132,7 +132,7 @@ npm run showcase:check
 
 **Continuous integration.** Every push and pull request runs the checks above against DataLab Web `develop` (or the ref of the `DATALAB_WEB_REF` repository variable); a weekly run reports regressions of DataLab Web `develop` without blocking anything; pushes to `main` deploy `dist/` to GitHub Pages.
 
-**Writing demos.** A demo (`src/scenarios/`) is a `ShowcaseScenario` driving DataLab Web through the `ShowcaseContext` of `src/engine.ts`: `click`, `clickMenuPath("File", "file.capsule")`, `type`, `press`, `drag`, `say`, `spotlight`, `checkpoint`… Captions are English keys of `t()`, translated in `src/locales/fr.json`. Only the user interface of DataLab Web is used (menus by `data-action-id`, regular selectors and ARIA roles); the remote-control bridge of DataLab Web (`allowedOrigins`) only serves read-only checks of the workspace content.
+**Writing demos.** A demo (`src/scenarios/`) is a `ShowcaseScenario` driving DataLab Web through the `ShowcaseContext` of `src/engine.ts`: `click`, `clickMenuPath("File", "file.capsule")`, `type`, `press`, `drag`, `say`, `spotlight`, `checkpoint`… Captions are English keys of `t()`, translated in `src/locales/fr.json`. The demos act through the user interface of DataLab Web only (menus by `data-action-id`, regular selectors and ARIA roles); its remote-control bridge (`allowedOrigins`, the showcase origin) only serves read-only checks of the workspace content.
 
 **Capsule of `w3`.** `public/showcase-capsule.dlcapsule` is a genuine capsule exported by DataLab desktop. To generate it again, with a Python environment where DataLab desktop is installed (`pip install datalab-platform`):
 

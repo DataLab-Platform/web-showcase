@@ -126,6 +126,26 @@ export class ShowcaseOverlay {
     if (status && status.textContent !== text) status.textContent = text;
   }
 
+  /** Add a spinner and a status line to a card (e.g. a title card shown
+   *  while DataLab Web reloads). */
+  addCardStatus(id = "card"): void {
+    const el = this.cardElement(id);
+    if (!el || el.querySelector(".showcase-card-status")) return;
+    const note = el.querySelector(".showcase-card-note");
+    for (const className of ["showcase-spinner", "showcase-card-status"]) {
+      const part = document.createElement("div");
+      part.className = className;
+      el.insertBefore(part, note);
+    }
+  }
+
+  /** Remove the spinner and the status line of a card. */
+  removeCardStatus(id = "card"): void {
+    const el = this.cardElement(id);
+    el?.querySelector(":scope > .showcase-spinner")?.remove();
+    el?.querySelector(":scope > .showcase-card-status")?.remove();
+  }
+
   hasCard(id = "card"): boolean {
     return this.cardElement(id) !== null;
   }

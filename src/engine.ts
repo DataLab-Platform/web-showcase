@@ -445,6 +445,10 @@ export class ShowcaseContext {
   /** Menu path of the actions searched in the menus (top key, submenus),
    *  ``null`` for the actions no menu holds. */
   private readonly actionPaths = new Map<string, string[] | null>();
+  /** DataLab Web was just (re)loaded: nothing to reset. */
+  private fresh = false;
+  /** Deferred reload of DataLab Web under way (see :meth:`reloadApp`). */
+  private pendingReload: Promise<void> | null = null;
 
   constructor(
     frame: AppFrame,
@@ -1182,21 +1186,31 @@ export class ShowcaseContext {
   /**
    * Bring DataLab Web back to a clean state, as a visitor would: close
    * menus, the command palette and dialogs, then start a new workspace
-   * (File > New workspace, confirmed) — or, with a DataLab Web without that
-   * action, reload it — and show the plot view of the Signals panel.
+   * (File > New workspace, confirmed) — and show the plot view of the
+   * Signals panel.
+   *
+   * DataLab Web has no File > New workspace action (yet): it is then
+   * reloaded, which is what a visitor starting afresh gets (empty and
+   * untitled workspace, unmodified, panels and Python workers new), the
+   * boot status being shown on the title card. A freshly loaded DataLab
+   * Web is left as it is.
    */
   async resetWorkspace(): Promise<void> {
     // Keep the title card: the player resets the workspace behind it.
     this.overlay?.clearCaption();
     this.overlay?.clearSpotlight();
+    await this.settleReload();
     await this.closeTransientUi();
-    if (await this.hasAction(NEW_WORKSPACE_ACTION)) {
+    if (this.fresh) {
+      this.log("DataLab Web was just loaded: nothing to reset");
+    } else if (await this.hasAction(NEW_WORKSPACE_ACTION)) {
       await this.runAction(NEW_WORKSPACE_ACTION, { instant: true });
       await this.acceptConfirmation(3_000);
     } else {
       this.log("no File > New workspace action: reloading DataLab Web");
       await this.reloadApp();
     }
+    this.fresh = false;
     await this.closeTransientUi();
     for (const name of ["Plot", "Images", "Signals"]) {
       const tab = this.tab(name);
@@ -1211,21 +1225,57 @@ export class ShowcaseContext {
     );
   }
 
+  /** DataLab Web was just loaded: its workspace is empty and untitled. */
+  markFresh(): void {
+    this.fresh = true;
+  }
+
   /**
    * Reload DataLab Web (a new iframe) and wait for its Python runtime;
    * ``between`` runs while no DataLab Web is loaded (e.g. to restore the
-   * visitor's storage, which nothing can overwrite meanwhile). Outside a
-   * title card, a boot card covers the reload.
+   * visitor's storage, which nothing can overwrite meanwhile). A boot
+   * status line is shown on the title card, or on a boot card outside a
+   * title card.
+   *
+   * With ``defer``, the reload goes on in the background once ``between``
+   * has run (e.g. behind the end card): the next workspace reset waits for
+   * it (:meth:`settleReload`), and ``onReady`` runs once DataLab Web is
+   * ready. A deferred reload is never aborted: the visitors always get
+   * DataLab Web back.
    */
-  async reloadApp(between?: () => Promise<void>): Promise<void> {
+  async reloadApp(
+    between?: () => Promise<void>,
+    opts: { defer?: boolean; onReady?: () => void } = {},
+  ): Promise<void> {
+    await this.settleReload().catch(() => undefined);
     this.hovered = null;
     this.pointer = null;
     this.buttons = 0;
-    const card = this.overlay && !this.overlay.hasCard("card");
-    if (card) {
-      this.overlay?.clearCaption();
-      this.overlay?.clearSpotlight();
-      this.overlay?.card(
+    this.fresh = false;
+    if (opts.defer) {
+      this.frame.unload();
+      if (between) await between();
+      const reload = (async () => {
+        await this.frame.load(this.frame.src);
+        this.onAppReloaded?.();
+        await this.frame.waitReady();
+        this.fresh = true;
+        opts.onReady?.();
+      })();
+      // Failures surface in settleReload().
+      reload.catch(() => undefined);
+      this.pendingReload = reload;
+      return;
+    }
+    const overlay = this.overlay;
+    const titled = !!overlay?.hasCard("card");
+    const cardId = titled ? "card" : "boot";
+    if (overlay && titled) {
+      overlay.addCardStatus("card");
+    } else if (overlay) {
+      overlay.clearCaption();
+      overlay.clearSpotlight();
+      overlay.card(
         {
           kicker: t("DataLab Web · live demo"),
           title: t("Full DataLab in your browser"),
@@ -1244,13 +1294,40 @@ export class ShowcaseContext {
       await this.frame.load(this.frame.src, this.signal);
       this.onAppReloaded?.();
       await this.frame.waitReady(this.signal, (status) =>
-        this.overlay?.cardStatus(
+        overlay?.cardStatus(
           status || t("Please wait until the Python runtime is ready."),
-          "boot",
+          cardId,
         ),
       );
+      this.fresh = true;
     } finally {
-      if (card) await this.overlay?.clearCard(450, "boot");
+      if (overlay && titled) overlay.removeCardStatus("card");
+      else if (overlay) await overlay.clearCard(450, "boot");
+    }
+  }
+
+  /** Wait for a deferred reload of DataLab Web, if any (with a boot status
+   *  line on the title card shown meanwhile). */
+  async settleReload(): Promise<void> {
+    const pending = this.pendingReload;
+    if (!pending) return;
+    const overlay = this.overlay?.hasCard("card") ? this.overlay : null;
+    overlay?.addCardStatus("card");
+    const timer = window.setInterval(
+      () =>
+        overlay?.cardStatus(
+          this.frame.statusText() ||
+            t("Please wait until the Python runtime is ready."),
+          "card",
+        ),
+      250,
+    );
+    try {
+      await pending;
+    } finally {
+      window.clearInterval(timer);
+      overlay?.removeCardStatus("card");
+      if (this.pendingReload === pending) this.pendingReload = null;
     }
   }
 

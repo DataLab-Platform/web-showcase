@@ -132,6 +132,7 @@ export class ShowcasePlayer {
           "boot",
         ),
       );
+      ctx.markFresh();
       this.status.state = "running";
       if (this.overlay) {
         this.overlay.mount();
@@ -168,12 +169,22 @@ export class ShowcasePlayer {
         if (!this.options.loop) break;
         const { reloadEvery } = this.options;
         if (reloadEvery > 0 && loop % reloadEvery === 0) {
-          // Same URL: the showcase restarts with a fresh DataLab Web.
+          // Same URL: the showcase restarts with a fresh DataLab Web. The
+          // iframe goes first: a discarded frame never asks "leave the
+          // page?" (modified workspace).
           reloading = true;
           this.status.state = "reloading";
+          this.frame.unload();
           window.location.reload();
           return this.status;
         }
+      }
+      if (!this.options.close) {
+        // DataLab Web may still be reloading (e.g. after W4): the visitors
+        // get it back ready.
+        await ctx.settleReload().catch((error: unknown) => {
+          console.error("[showcase] DataLab Web did not reload", error);
+        });
       }
       this.status.state = "done";
       if (this.options.close) {
@@ -253,6 +264,9 @@ export class ShowcasePlayer {
   private async closeWindow(): Promise<void> {
     this.status.state = "closing";
     this.ctx.log("closing the window");
+    // A discarded frame never asks "leave the page?" (modified workspace),
+    // which would keep the window open.
+    this.frame.unload();
     window.close();
     await sleep(CLOSE_GRACE_MS, this.abort.signal);
     this.ctx.log("the browser kept the window open");
@@ -260,6 +274,8 @@ export class ShowcasePlayer {
     this.overlay?.setMode("idle");
     this.overlay?.shield(false);
     this.overlay?.badge(t("You can close this window."), "idle");
+    // DataLab Web comes back behind the end card.
+    void this.frame.load().catch(() => undefined);
   }
 
   private async prewarm(scenarios: ShowcaseScenario[]): Promise<void> {

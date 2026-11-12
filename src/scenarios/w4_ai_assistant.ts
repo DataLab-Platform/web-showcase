@@ -484,20 +484,30 @@ export const w4AiAssistant: ShowcaseScenario = {
       if (changed) {
         await stopAssistant(ctx);
         // DataLab Web is unloaded while the visitor's state is put back, so
-        // that nothing can overwrite it, then reloaded with it.
+        // that nothing can overwrite it, then reloaded with it (in the
+        // background: the next workspace reset waits for it).
         let restored = false;
-        await ctx.reloadApp(async () => {
-          restoreStorage(storage, AI_STORAGE_PREFIXES, saved);
-          const removed = await conversations.restore();
-          restored = sameStorage(storage, AI_STORAGE_PREFIXES, saved);
-          ctx.log(
-            `AI Assistant state restored (${removed} demo conversation(s) removed, settings identical: ${restored})`,
-          );
-        });
-        const identical =
-          restored && sameStorage(storage, AI_STORAGE_PREFIXES, saved);
-        ctx.checks["w4.aiStateRestored"] = identical;
-        ctx.log(`AI Assistant settings identical after reload: ${identical}`);
+        await ctx.reloadApp(
+          async () => {
+            restoreStorage(storage, AI_STORAGE_PREFIXES, saved);
+            const removed = await conversations.restore();
+            restored = sameStorage(storage, AI_STORAGE_PREFIXES, saved);
+            ctx.log(
+              `AI Assistant state restored (${removed} demo conversation(s) removed, settings identical: ${restored})`,
+            );
+          },
+          {
+            defer: true,
+            onReady: () => {
+              const identical =
+                restored && sameStorage(storage, AI_STORAGE_PREFIXES, saved);
+              ctx.checks["w4.aiStateRestored"] = identical;
+              ctx.log(
+                `AI Assistant settings identical after reload: ${identical}`,
+              );
+            },
+          },
+        );
       }
     }
   },
