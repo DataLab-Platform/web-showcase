@@ -1,0 +1,32 @@
+# Dependencies and build outputs
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Compiled root config files (the *.config.ts files are the source of truth)
+vite.config.js
+vite.config.d.ts
+vitest.config.js
+vitest.config.d.ts
+playwright.config.js
+playwright.config.d.ts
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# Local DataLab Web build used by the checks (see README)
+.datalab-web/
+
+# Editor and OS
+.vscode/*.log
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
