@@ -1,0 +1,20 @@
+# Build / dependencies
+node_modules/
+dist/
+*.tsbuildinfo
+package-lock.json
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+.playwright/
+.datalab-web/
+.scratch/
+
+# Binaries
+**/*.svg
+**/*.png
+**/*.ico
+**/*.dlcapsule
+**/*.h5
