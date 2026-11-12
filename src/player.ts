@@ -75,6 +75,10 @@ declare global {
 /** Time left to the browser to close the window (``close=1``) before the
  *  showcase concludes that it refused to. */
 const CLOSE_GRACE_MS = 1500;
+/** Error card shown before closing the window (``close=1``). */
+const ERROR_CLOSE_DELAY_MS = 8_000;
+/** Error card shown before the page reloads (``loop=1``). */
+const ERROR_RESTART_DELAY_MS = 60_000;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -125,12 +129,18 @@ export class ShowcasePlayer {
     let closing = false;
     try {
       this.showBootCard();
-      await this.frame.load(this.frame.src, this.abort.signal);
-      await this.frame.waitReady(this.abort.signal, (text) =>
-        this.overlay?.cardStatus(
-          text || t("Please wait until the Python runtime is ready."),
-          "boot",
-        ),
+      await this.frame.start(
+        this.abort.signal,
+        (text) =>
+          this.overlay?.cardStatus(
+            text || t("Please wait until the Python runtime is ready."),
+            "boot",
+          ),
+        () =>
+          this.overlay?.cardStatus(
+            t("DataLab Web did not start, trying again…"),
+            "boot",
+          ),
       );
       ctx.markFresh();
       this.status.state = "running";
@@ -207,6 +217,20 @@ export class ShowcasePlayer {
           loop: this.status.loop,
         });
         this.showErrorCard(errorMessage(error));
+        if (this.options.close) {
+          // A web interlude never hangs: DataLab desktop waits for the
+          // window to close.
+          closing = true;
+          await sleep(ERROR_CLOSE_DELAY_MS).catch(() => undefined);
+          await this.closeWindow().catch(() => undefined);
+        } else if (this.options.loop) {
+          // Unattended kiosk: start afresh a little later.
+          this.overlay?.cardNote(t("The showcase restarts in a minute."));
+          window.setTimeout(() => {
+            this.frame.unload();
+            window.location.reload();
+          }, ERROR_RESTART_DELAY_MS);
+        }
       }
     } finally {
       removeHotkeys();
@@ -262,6 +286,7 @@ export class ShowcasePlayer {
    * stays with a discreet "You can close this window" badge.
    */
   private async closeWindow(): Promise<void> {
+    const failed = this.status.state === "error";
     this.status.state = "closing";
     this.ctx.log("closing the window");
     // A discarded frame never asks "leave the page?" (modified workspace),
@@ -270,7 +295,7 @@ export class ShowcasePlayer {
     window.close();
     await sleep(CLOSE_GRACE_MS, this.abort.signal);
     this.ctx.log("the browser kept the window open");
-    this.status.state = "done";
+    this.status.state = failed ? "error" : "done";
     this.overlay?.setMode("idle");
     this.overlay?.shield(false);
     this.overlay?.badge(t("You can close this window."), "idle");

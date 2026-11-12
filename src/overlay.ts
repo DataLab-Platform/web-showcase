@@ -146,6 +146,19 @@ export class ShowcaseOverlay {
     el?.querySelector(":scope > .showcase-card-status")?.remove();
   }
 
+  /** Set the note (bottom line) of a card. */
+  cardNote(text: string, id = "error"): void {
+    const el = this.cardElement(id);
+    if (!el) return;
+    let note = el.querySelector<HTMLElement>(":scope > .showcase-card-note");
+    if (!note) {
+      note = document.createElement("div");
+      note.className = "showcase-card-note";
+      el.appendChild(note);
+    }
+    note.textContent = text;
+  }
+
   hasCard(id = "card"): boolean {
     return this.cardElement(id) !== null;
   }

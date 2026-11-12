@@ -431,8 +431,6 @@ export class ShowcaseContext {
   readonly signal: AbortSignal | undefined;
   /** Scenario being played (set by the player). */
   scenario: ShowcaseScenario | null = null;
-  /** Hook of the player, run after DataLab Web was reloaded. */
-  onAppReloaded: (() => void) | null = null;
   /** Checks of the visitor's state, published in ``window.__showcase``. */
   checks: Record<string, boolean> = {};
 
@@ -1256,9 +1254,7 @@ export class ShowcaseContext {
       this.frame.unload();
       if (between) await between();
       const reload = (async () => {
-        await this.frame.load(this.frame.src);
-        this.onAppReloaded?.();
-        await this.frame.waitReady();
+        await this.frame.start();
         this.fresh = true;
         opts.onReady?.();
       })();
@@ -1291,13 +1287,18 @@ export class ShowcaseContext {
     try {
       this.frame.unload();
       if (between) await between();
-      await this.frame.load(this.frame.src, this.signal);
-      this.onAppReloaded?.();
-      await this.frame.waitReady(this.signal, (status) =>
-        overlay?.cardStatus(
-          status || t("Please wait until the Python runtime is ready."),
-          cardId,
-        ),
+      await this.frame.start(
+        this.signal,
+        (status) =>
+          overlay?.cardStatus(
+            status || t("Please wait until the Python runtime is ready."),
+            cardId,
+          ),
+        () =>
+          overlay?.cardStatus(
+            t("DataLab Web did not start, trying again…"),
+            cardId,
+          ),
       );
       this.fresh = true;
     } finally {

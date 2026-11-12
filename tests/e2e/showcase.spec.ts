@@ -109,4 +109,38 @@ test.describe("showcase check", () => {
     await page.waitForEvent("close", { timeout: 4 * 60_000 });
     expect(page.isClosed()).toBe(true);
   });
+
+  test("obeys the operator hotkeys on the page and in DataLab Web", async ({
+    page,
+  }) => {
+    test.setTimeout(5 * 60_000);
+    logShowcase(page);
+    await page.goto("/web-showcase/?demos=w1&lang=en");
+    const badge = page.locator(".showcase-badge");
+    // The demo plays (its first caption is shown).
+    await expect(page.locator(".showcase-caption-text")).toBeVisible({
+      timeout: 4 * 60_000,
+    });
+
+    // Keyboard focus in DataLab Web.
+    await page
+      .locator("iframe.app-frame")
+      .evaluate((frame: HTMLIFrameElement) => frame.contentWindow?.focus());
+    await page.keyboard.press("F9");
+    await expect(badge).toHaveText("Paused — F9 to resume");
+    await page.keyboard.press("F9");
+    await expect(badge).toHaveCount(0);
+
+    // Keyboard focus on the showcase page.
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await page.keyboard.press("F9");
+    await expect(badge).toHaveText("Paused — F9 to resume");
+    await page.keyboard.press("Shift+F12");
+    await page.keyboard.press("F9");
+    await expect(badge).toHaveText(
+      "Stopping after this demo — Shift+F12 to cancel",
+    );
+    await page.keyboard.press("Shift+F12");
+    await expect(badge).toHaveCount(0);
+  });
 });

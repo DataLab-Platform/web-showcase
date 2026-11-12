@@ -20,7 +20,7 @@ With Microsoft Edge:
 msedge --kiosk "https://datalab-platform.com/web-showcase/?loop=1&lang=fr" --edge-kiosk-type=fullscreen
 ```
 
-The first start downloads the Python runtime of DataLab Web (about a minute on a fresh browser, a boot card is shown meanwhile); the next ones use the browser cache. In a loop, the page reloads itself every 5 loops to start afresh.
+The first start downloads the Python runtime of DataLab Web (about a minute on a fresh browser, a boot card is shown meanwhile); the next ones use the browser cache. In a loop, the page reloads itself every 5 loops to start afresh. If DataLab Web fails to start (e.g. a download failing on a busy network), the showcase tries again; if it still fails, a loop restarts the page by itself a minute later.
 
 ## Demos
 
@@ -82,7 +82,7 @@ The DataLab desktop showcase (the `datalab-showcase` plugin) can play the web de
 https://datalab-platform.com/web-showcase/?demos=all&close=1
 ```
 
-in a dedicated application window (`msedge --app=<url>` or `chrome --app=<url>`), which closes itself after one pass, its end card shown. A browser closes by script only such windows (or windows opened by a script): in a regular tab, a "You can close this window" badge is shown instead.
+in a dedicated application window (`msedge --app=<url>` or `chrome --app=<url>`), which closes itself after one pass, its end card shown — or after a few seconds of error message if DataLab Web cannot start, so that DataLab desktop never waits for it. A browser closes by script only such windows (or windows opened by a script): in a regular tab, a "You can close this window" badge is shown instead.
 
 ## Local use (without datalab-platform.com)
 

@@ -8,7 +8,7 @@
  * go with it.
  */
 
-import { sleep, throwIfAborted } from "./pause";
+import { ShowcaseAborted, sleep, throwIfAborted } from "./pause";
 
 /** Window of the iframe, with the constructors of its realm. */
 export type FrameWindow = Window & typeof globalThis;
@@ -20,6 +20,9 @@ export interface Point {
 
 /** Python runtime boot: Pyodide and the packages (cold browser cache). */
 export const BOOT_TIMEOUT_MS = 300_000;
+/** Attempts to start DataLab Web (a download may fail on a busy network). */
+export const BOOT_ATTEMPTS = 3;
+const BOOT_RETRY_DELAY_MS = 5_000;
 
 export class AppFrame {
   private element: HTMLIFrameElement | null = null;
@@ -110,6 +113,37 @@ export class AppFrame {
   unload(): void {
     this.element?.remove();
     this.element = null;
+  }
+
+  /**
+   * (Re)load DataLab Web and wait for its Python runtime, trying again
+   * (up to ``attempts`` times) when it fails to start, e.g. after a failed
+   * download on a busy network.
+   */
+  async start(
+    signal?: AbortSignal,
+    onStatus?: (text: string) => void,
+    onRetry?: (attempt: number, error: unknown) => void,
+    attempts = BOOT_ATTEMPTS,
+  ): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.load(this.url, signal);
+        await this.waitReady(signal, onStatus);
+        return;
+      } catch (error) {
+        if (error instanceof ShowcaseAborted || attempt >= attempts) {
+          throw error;
+        }
+        console.warn(
+          `[showcase] DataLab Web did not start (attempt ${attempt})`,
+          error,
+        );
+        onRetry?.(attempt, error);
+        this.unload();
+        await sleep(BOOT_RETRY_DELAY_MS, signal);
+      }
+    }
   }
 
   /** ``data-runtime-status`` of DataLab Web (``loading``, ``ready``,
