@@ -43,6 +43,23 @@ function aiStorage(page: Page): Promise<Record<string, string>> {
 }
 
 test.describe("showcase check", () => {
+  test("waits for a new workspace between two real demos", async ({ page }) => {
+    test.setTimeout(20 * 60_000);
+    logShowcase(page);
+    await page.goto("/web-showcase/?demos=w1,w2&speed=0&lang=en");
+    const status = await waitForShowcase(page, 19 * 60_000);
+    expectAllPassed(status);
+    expect(
+      status.results.map(({ id, status: result }) => [id, result]),
+    ).toEqual([
+      ["w1", "passed"],
+      ["w2", "passed"],
+    ]);
+    const app = page.frameLocator("iframe.app-frame").locator(".app");
+    await expect(app).toHaveAttribute("data-workspace-reset-id", "1");
+    await expect(app).toHaveAttribute("data-workspace-reset-state", "idle");
+  });
+
   test("plays every demo and keeps the visitor's AI settings", async ({
     page,
   }) => {

@@ -1187,11 +1187,8 @@ export class ShowcaseContext {
    * (File > New workspace, confirmed) — and show the plot view of the
    * Signals panel.
    *
-   * DataLab Web has no File > New workspace action (yet): it is then
-   * reloaded, which is what a visitor starting afresh gets (empty and
-   * untitled workspace, unmodified, panels and Python workers new), the
-   * boot status being shown on the title card. A freshly loaded DataLab
-   * Web is left as it is.
+   * Older DataLab Web versions without the action or its completion
+   * signal are reloaded. A freshly loaded DataLab Web is left as it is.
    */
   async resetWorkspace(): Promise<void> {
     // Keep the title card: the player resets the workspace behind it.
@@ -1199,13 +1196,75 @@ export class ShowcaseContext {
     this.overlay?.clearSpotlight();
     await this.settleReload();
     await this.closeTransientUi();
+    const app = this.doc.querySelector(".app");
+    const previousId = app?.getAttribute("data-workspace-reset-id");
+    const previousState = app?.getAttribute("data-workspace-reset-state");
     if (this.fresh) {
       this.log("DataLab Web was just loaded: nothing to reset");
-    } else if (await this.hasAction(NEW_WORKSPACE_ACTION)) {
+    } else if (
+      previousId != null &&
+      previousState != null &&
+      (await this.hasAction(NEW_WORKSPACE_ACTION))
+    ) {
       await this.runAction(NEW_WORKSPACE_ACTION, { instant: true });
-      await this.acceptConfirmation(3_000);
+      let confirmed = false;
+      for (;;) {
+        const event = await this.waitFor(
+          () => {
+            const app = this.doc.querySelector(".app");
+            const id = app?.getAttribute("data-workspace-reset-id");
+            const state = app?.getAttribute("data-workspace-reset-state");
+            if (!app || id == null) return { kind: "missing" as const };
+            if (state === "error") {
+              const dialog = this.visible('.overlay[role="dialog"]');
+              return {
+                kind: "error" as const,
+                message: dialog ? text(dialog) : "",
+              };
+            }
+            if (id !== previousId && state === "idle") {
+              return { kind: "complete" as const };
+            }
+            if (!confirmed) {
+              const dialog = this.visible('.overlay[role="dialog"]');
+              if (dialog) {
+                const button = dialog.querySelector<HTMLElement>(
+                  ".actions button.danger",
+                );
+                const title = dialog.querySelector("h2");
+                return button &&
+                  isAppLabel(title?.textContent, "New workspace") &&
+                  isAppLabel(button.textContent, "Create")
+                  ? { kind: "confirm" as const, button }
+                  : { kind: "unexpected" as const, message: text(dialog) };
+              }
+            }
+            return null;
+          },
+          30_000,
+          "the new workspace to finish resetting",
+        );
+        if (event.kind === "complete") break;
+        if (event.kind === "confirm") {
+          await this.hold(500);
+          await this.click(event.button, { instant: this.check });
+          confirmed = true;
+          continue;
+        }
+        if (event.kind === "unexpected") {
+          throw new Error(
+            `Unexpected dialog while resetting: ${event.message}`,
+          );
+        }
+        if (event.kind === "missing") {
+          throw new Error("The workspace reset completion signal disappeared");
+        }
+        throw new Error(
+          `DataLab Web could not create a new workspace${event.message ? `: ${event.message}` : ""}`,
+        );
+      }
     } else {
-      this.log("no File > New workspace action: reloading DataLab Web");
+      this.log("no supported workspace reset: reloading DataLab Web");
       await this.reloadApp();
     }
     this.fresh = false;
