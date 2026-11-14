@@ -66,7 +66,7 @@ The showcase and DataLab Web share the same origin, hence the same browser stora
 - the notebooks and macros created by `w2` are closed and removed from the "Recent…" lists;
 - the capsule revision recorded by `w3` and the conversation of `w4` are removed from the history of the browser.
 
-Between two demos, the workspace starts afresh, as for a visitor: File > New workspace when DataLab Web has it, otherwise DataLab Web is reloaded behind the title card of the next demo (empty, untitled and unmodified workspace, new panels and Python workers; the browser cache makes it a matter of seconds to a few tens of seconds, the boot status being shown on the card).
+Between two demos, the workspace starts afresh, as for a visitor. File > New workspace clears it and restarts the macro and notebook workers without restarting the main Python runtime; the next demo waits until the new workspace is ready. Older DataLab Web versions are reloaded behind the next title card instead (the browser cache makes this a matter of seconds to a few tens of seconds, with the boot status shown on the card).
 
 ## Requirements
 
