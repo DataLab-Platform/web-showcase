@@ -13,3 +13,7 @@ First release: the Showcase mode of DataLab Web, moved out of DataLab Web into a
 - The visitor's state is restored after the demos: theme, AI Assistant settings (byte for byte), recent notebooks and macros, capsule revisions and AI conversations.
 - Check harness (`npm run showcase:check`) serving the showcase and a DataLab Web build under the same origin, continuous integration (including a weekly run against DataLab Web `develop`) and deployment to GitHub Pages.
 - `scripts/gen_showcase_capsule.py`, generating the capsule of `w3` with an installed DataLab desktop.
+
+### Fixed
+
+- **Transitions between demos:** the next demo now waits for DataLab Web's new workspace to be ready instead of starting while the previous workspace is still being cleared. Older versions without the completion signal are reloaded (fixes [Issue #4](https://github.com/DataLab-Platform/web-showcase/issues/4)).
