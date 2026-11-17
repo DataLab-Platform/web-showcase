@@ -4,11 +4,26 @@ Unattended live demos of [DataLab Web](https://datalab-platform.com/web/), for c
 
 The showcase is a static page that shows DataLab Web full screen and plays scripted demos on top of it: a pointer glides to each button, menus open, code is typed live, captions explain what happens. Everything really runs in the browser (Python, NumPy, SciPy and Sigima compiled to WebAssembly): the demos use the real DataLab Web, as a visitor would.
 
-**Open it:** <https://datalab-platform.com/web-showcase/>
+**Open it:** <https://datalab-platform.com/web-showcase/> (a welcome menu sets the showcase up, see below).
+
+## Welcome menu
+
+Opened without any playing parameter (`demos`, `skip`, `loop`, `speed`, `check`, `close`, `reload`; `lang` and `app` still apply), the showcase shows a welcome menu, like the Showcase mode dialog of DataLab desktop (Plugins > DataLab Showcase):
+
+- **Demos** to play: the native demos are listed at once, the demos of the application plugins once DataLab Web lists them. DataLab Web starts behind the menu (its status is shown at the bottom), so that the demos start without waiting.
+- **Loop**, with the page reload period (every N loops, `0` for never).
+- **Pace**: slow, normal or fast (the factors of DataLab desktop: `speed` 1.5, 1 and 0.7).
+- **Full screen**, requested when Start is pressed (the browser leaves it when the page reloads: on an unattended booth, prefer the kiosk mode).
+- **Language** of the captions and of DataLab Web (the page starts again in that language, the choices kept).
+- **Kiosk link**: the URL playing these choices without the menu, with a Copy button.
+
+The choices are remembered in the browser (`localStorage` key `datalab-web-showcase.settings`, apart from the settings of DataLab Web). As on the desktop, the deselected demos are remembered as such: a new demo, e.g. of a newly installed application plugin, is selected by default (the kiosk link lists the deselected demos in `skip`).
+
+Once started, the page URL becomes the kiosk link: a reload (every N loops, after an error, or by the browser) plays the same choices again. To get the menu back, open the showcase without parameters.
 
 ## Kiosk mode
 
-On a booth screen, open the showcase full screen and let it loop:
+On a booth screen, open the showcase full screen and let it loop (the **Kiosk link** of the welcome menu gives the URL of other choices):
 
 ```text
 chrome --kiosk "https://datalab-platform.com/web-showcase/?loop=1&lang=fr"
@@ -36,9 +51,12 @@ The playlist is `w1`, the first application plugin, `w2`, the second application
 
 ## URL parameters
 
+Any of the parameters `demos`, `skip`, `loop`, `speed`, `check`, `close` and `reload` starts the demos at once, without the welcome menu.
+
 | Parameter | Values                                    | Default   | Effect                                                                                                    |
 | --------- | ----------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
 | `demos`   | `all`, or a list such as `w1,w3,app:<id>` | `all`     | Demos to play, in playlist order.                                                                         |
+| `skip`    | a list such as `w4,app:<id>`              | none      | Demos left out of `demos` (unknown ids are ignored, e.g. a removed application plugin).                   |
 | `loop`    | `1`                                       | one pass  | Play the demos again and again.                                                                           |
 | `speed`   | number, e.g. `0.7` (faster) or `1.4`      | `1`       | Pace of every pause and pointer motion. `0` selects the check mode (no pauses, no overlays, single pass). |
 | `lang`    | `en`, `fr`                                | see below | Language of the captions, also passed to DataLab Web.                                                     |

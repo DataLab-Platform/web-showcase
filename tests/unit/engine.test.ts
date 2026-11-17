@@ -285,4 +285,18 @@ describe("playlist", () => {
     expect(scenarios.map((s) => s.id)).toEqual(["app:x", "w3"]);
     expect(unknown).toEqual(["w9"]);
   });
+
+  it("leaves out the skipped demos, ignoring unknown ones", () => {
+    const all = ["w1", "app:x", "w2", "w3"].map((id) => ({ id }));
+    const ids = (selection: { scenarios: { id: string }[] }) =>
+      selection.scenarios.map((s) => s.id);
+    expect(ids(selectScenarios(all, null, ["W2", "app:gone"]))).toEqual([
+      "w1",
+      "app:x",
+      "w3",
+    ]);
+    const selection = selectScenarios(all, ["w1", "w2"], ["w2"]);
+    expect(ids(selection)).toEqual(["w1"]);
+    expect(selection.unknown).toEqual([]);
+  });
 });

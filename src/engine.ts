@@ -423,8 +423,8 @@ export class ShowcaseContext {
   readonly frame: AppFrame;
   /** Read-only queries of the workspace (remote-control bridge). */
   readonly bridge: AppBridge;
-  /** Pace multiplier (0 in check mode). */
-  readonly speed: number;
+  /** Pace multiplier (0 in check mode, see :meth:`setSpeed`). */
+  private pace: number;
   /** Check mode: no pauses, no overlays, no pointer animation. */
   readonly check: boolean;
   readonly pause: PauseController;
@@ -456,10 +456,21 @@ export class ShowcaseContext {
     this.frame = frame;
     this.bridge = bridge;
     this.check = opts.check === true || opts.speed === 0;
-    this.speed = this.check ? 0 : Math.max(0.05, opts.speed);
+    this.pace = this.check ? 0 : Math.max(0.05, opts.speed);
     this.overlay = this.check ? null : (opts.overlay ?? null);
     this.pause = opts.pause ?? new PauseController();
     this.signal = opts.signal;
+  }
+
+  /** Pace multiplier (1 = normal, 0 in check mode). */
+  get speed(): number {
+    return this.pace;
+  }
+
+  /** Change the pace, e.g. once chosen in the welcome menu (none in check
+   *  mode). */
+  setSpeed(speed: number): void {
+    if (!this.check) this.pace = Math.max(0.05, speed);
   }
 
   /** Document of DataLab Web (the iframe). */

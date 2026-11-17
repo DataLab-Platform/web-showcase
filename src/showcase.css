@@ -312,3 +312,278 @@ html[data-showcase="autoplay"] * {
 html[data-showcase="idle"] .showcase-cursor {
   display: none;
 }
+
+/* Welcome menu (src/menu.ts): above the overlays, DataLab Web booting
+   behind it. */
+.showcase-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483500;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  color: #e2e8f0;
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    #16507f 0%,
+    #0b2742 52%,
+    #040b16 100%
+  );
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    Roboto,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+html[data-showcase] .showcase-menu,
+html[data-showcase] .showcase-menu * {
+  cursor: default !important;
+}
+
+html[data-showcase] .showcase-menu :is(button, select, label),
+html[data-showcase] .showcase-menu input[type="checkbox"] {
+  cursor: pointer !important;
+}
+
+html[data-showcase]
+  .showcase-menu
+  :is(input[type="text"], input[type="number"]) {
+  cursor: text !important;
+}
+
+html[data-showcase] .showcase-menu :disabled,
+html[data-showcase] .showcase-menu label:has(:disabled) {
+  cursor: not-allowed !important;
+}
+
+.showcase-menu-panel {
+  box-sizing: border-box;
+  width: min(980px, 100%);
+  max-height: 100%;
+  margin: auto;
+  padding: 28px 32px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: auto;
+}
+
+.showcase-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.showcase-menu-logo {
+  width: 64px;
+  height: 64px;
+}
+
+.showcase-menu-kicker {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.showcase-menu-title {
+  margin: 2px 0 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.showcase-menu-intro {
+  margin: 18px 0 6px;
+}
+
+.showcase-menu-hotkeys,
+.showcase-menu-note,
+.showcase-menu-copied {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.showcase-menu-body {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 20px;
+  margin-top: 18px;
+}
+
+@media (max-width: 760px) {
+  .showcase-menu-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.showcase-menu fieldset {
+  margin: 0;
+  min-width: 0;
+  padding: 10px 16px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.showcase-menu legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.showcase-menu-demo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.showcase-menu-demo-list li + li {
+  margin-top: 8px;
+}
+
+.showcase-menu-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.showcase-menu-check small {
+  grid-column: 2;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.showcase-menu input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #38bdf8;
+  transform: translateY(2px);
+}
+
+.showcase-menu-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.showcase-menu-sub {
+  padding-left: 27px;
+  font-size: 14px;
+}
+
+.showcase-menu-sub:has(:disabled) {
+  opacity: 0.5;
+}
+
+.showcase-menu :is(select, input[type="text"], input[type="number"]) {
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(2, 6, 23, 0.65);
+  color: #f8fafc;
+  font: inherit;
+}
+
+.showcase-menu input[type="number"] {
+  width: 70px;
+}
+
+.showcase-menu-kiosk {
+  margin-top: 16px;
+}
+
+.showcase-menu-kiosk .showcase-menu-field {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.showcase-menu-link-row {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+
+.showcase-menu-link {
+  flex: 1;
+  min-width: 0;
+  font-family: Consolas, "Cascadia Mono", monospace !important;
+  font-size: 13px !important;
+}
+
+.showcase-menu button {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(30, 41, 59, 0.9);
+  color: #f8fafc;
+  font: inherit;
+}
+
+.showcase-menu button:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.95);
+}
+
+.showcase-menu-copied {
+  display: block;
+  min-height: 18px;
+  color: #86efac;
+}
+
+.showcase-menu-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.showcase-menu-status {
+  font-size: 14px;
+  color: #93c5fd;
+}
+
+.showcase-menu-status--ready {
+  color: #86efac;
+}
+
+.showcase-menu .showcase-menu-start {
+  min-width: 140px;
+  padding: 10px 28px;
+  border: 0;
+  background: #0284c7;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.showcase-menu .showcase-menu-start:hover:not(:disabled) {
+  background: #0369a1;
+}
+
+.showcase-menu .showcase-menu-start:disabled {
+  opacity: 0.45;
+}
+
+.showcase-menu :focus-visible {
+  outline: 2px solid #facc15;
+  outline-offset: 2px;
+}
