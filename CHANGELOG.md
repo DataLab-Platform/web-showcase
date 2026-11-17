@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-17)
 
 First release: the Showcase mode of DataLab Web, moved out of DataLab Web into a static host page served next to it (<https://datalab-platform.com/web-showcase/>).
 
