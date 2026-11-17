@@ -20,10 +20,20 @@ describe("URL parameters", () => {
       check: false,
       reloadEvery: DEFAULT_RELOAD_EVERY,
       close: false,
+      controls: true,
       lang: null,
       app: null,
     });
     expect(parseShowcaseParams("?demos=all").ids).toBeNull();
+  });
+
+  it("disables the control bar with controls=0 only", () => {
+    for (const value of ["0", "false", "no", "off"]) {
+      expect(parseShowcaseParams(`?controls=${value}`).controls).toBe(false);
+    }
+    for (const search of ["?controls=1", "?controls=", "?demos=all"]) {
+      expect(parseShowcaseParams(search).controls).toBe(true);
+    }
   });
 
   it("selects demos, without duplicates, case-insensitively", () => {
@@ -52,6 +62,7 @@ describe("URL parameters", () => {
       "?check=1",
       "?close=1",
       "?reload=0",
+      "?controls=0",
       "?demos=",
     ]) {
       expect(isMenuRequested(search)).toBe(false);
@@ -169,6 +180,7 @@ describe("kiosk link", () => {
     loop: false,
     speed: 1,
     reloadEvery: DEFAULT_RELOAD_EVERY,
+    controls: true,
     lang: "en" as const,
   };
 
@@ -188,11 +200,12 @@ describe("kiosk link", () => {
         loop: true,
         speed: 0.7,
         reloadEvery: 0,
+        controls: false,
         lang: "fr",
       },
     );
     expect(href).toBe(
-      "https://datalab-platform.com/web-showcase/?demos=all&skip=w2,app:org.example.app&loop=1&reload=0&speed=0.7&lang=fr&app=/web-dev/",
+      "https://datalab-platform.com/web-showcase/?demos=all&skip=w2,app:org.example.app&loop=1&reload=0&speed=0.7&controls=0&lang=fr&app=/web-dev/",
     );
     expect(parseShowcaseParams(new URL(href).search)).toMatchObject({
       ids: null,
@@ -200,6 +213,7 @@ describe("kiosk link", () => {
       loop: true,
       speed: 0.7,
       reloadEvery: 0,
+      controls: false,
       lang: "fr",
       app: "/web-dev/",
     });

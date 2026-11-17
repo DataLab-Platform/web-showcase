@@ -11,9 +11,11 @@ import {
   menuItemMatches,
   parseKeys,
   ShowcaseContext,
+  ShowcaseInterrupted,
   typingChunks,
 } from "../../src/engine";
 import { AppBridge, AppFrame } from "../../src/frame";
+import { PauseController } from "../../src/pause";
 import { interleave, selectScenarios } from "../../src/playlist";
 
 /** Minimal CodeMirror ``EditorView`` (document and selection). */
@@ -257,6 +259,89 @@ describe("workspace transitions", () => {
     const click = vi.spyOn(context, "click").mockResolvedValue();
     await expect(context.resetWorkspace()).rejects.toThrow("Unexpected dialog");
     expect(click).not.toHaveBeenCalled();
+  });
+});
+
+describe("operator controls", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function controlledContext() {
+    const frame = new AppFrame(
+      document.createElement("div"),
+      new URL("http://localhost/web/"),
+    );
+    vi.spyOn(frame, "doc", "get").mockReturnValue(document);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const pause = new PauseController();
+    const context = new ShowcaseContext(frame, new AppBridge(frame), {
+      speed: 1,
+      pause,
+    });
+    return { context, pause };
+  }
+
+  it("freezes a wait and its timeout during an immediate pause", async () => {
+    vi.useFakeTimers();
+    const { context, pause } = controlledContext();
+    const wait = context.waitFor(() => false, 1_000, "nothing");
+    const timedOut = expect(wait).rejects.toThrow("nothing");
+    await vi.advanceTimersByTimeAsync(200);
+    pause.setLevel("immediate");
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(pause.state).toBe("paused");
+    pause.release();
+    // The 800 ms left run after the pause.
+    let settled = false;
+    void wait.catch(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(600);
+    await timedOut;
+  });
+
+  it("raises an interruption from a primitive, then unwinds at once", async () => {
+    vi.useFakeTimers();
+    const { context, pause } = controlledContext();
+    const hold = context.hold(60_000);
+    const interrupted =
+      expect(hold).rejects.toBeInstanceOf(ShowcaseInterrupted);
+    await vi.advanceTimersByTimeAsync(100);
+    pause.interrupt();
+    await vi.advanceTimersByTimeAsync(100);
+    await interrupted;
+    // The scenario's finally blocks run at once, without a new interruption.
+    let unwound = false;
+    void context.hold(60_000).then(() => (unwound = true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unwound).toBe(true);
+    await expect(context.waitFor(() => true, 1_000)).resolves.toBe(true);
+    context.endScenario();
+    expect(pause.unwinding).toBe(false);
+  });
+
+  it("plays fast until the next caption, at the pace chosen live", async () => {
+    vi.useFakeTimers();
+    const { context, pause } = controlledContext();
+    pause.requestStep();
+    expect(context.speed).toBeCloseTo(0.2);
+    context.setSpeed(2);
+    expect(context.speed).toBeCloseTo(0.4);
+    expect(context.baseSpeed).toBe(2);
+    const say = context.say("Next step", 1_000);
+    expect(context.speed).toBe(2);
+    expect(context.step).toBe(1);
+    let done = false;
+    void say.then(() => (done = true));
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Half the hold left at a slow pace: back to normal.
+    context.setSpeed(1);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(done).toBe(true);
   });
 });
 

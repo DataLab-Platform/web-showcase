@@ -151,21 +151,50 @@ test.describe("showcase check", () => {
       .locator("iframe.app-frame")
       .evaluate((frame: HTMLIFrameElement) => frame.contentWindow?.focus());
     await page.keyboard.press("F9");
-    await expect(badge).toHaveText("Paused — F9 to resume");
+    // The pause requested applies at the next hold of the demo.
+    await expect(badge).toHaveText("Paused — F9 to resume", {
+      timeout: 60_000,
+    });
     await page.keyboard.press("F9");
     await expect(badge).toHaveCount(0);
 
     // Keyboard focus on the showcase page.
     await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
-    await page.keyboard.press("F9");
-    await expect(badge).toHaveText("Paused — F9 to resume");
-    await page.keyboard.press("Shift+F12");
-    await page.keyboard.press("F9");
-    await expect(badge).toHaveText(
-      "Stopping after this demo — Shift+F12 to cancel",
-    );
-    await page.keyboard.press("Shift+F12");
+    await page.keyboard.press("+");
+    await expect(badge).toHaveText("Pace ×1.4");
     await expect(badge).toHaveCount(0);
+    await page.keyboard.press("F9");
+    await expect(badge).toHaveText("Paused — F9 to resume", {
+      timeout: 60_000,
+    });
+    // A stop request releases the pause.
+    await page.keyboard.press("Shift+F12");
+    await expect(badge).toHaveText(
+      "Stopping after this demo — Shift+F12 again to stop now",
+    );
+
+    // The control bar shows up when the operator moves the mouse.
+    const bar = page.locator(".showcase-controls");
+    await page.mouse.move(200, 200);
+    await page.mouse.move(400, 300);
+    await expect(bar).toBeVisible();
+    await expect(bar.getByRole("button", { name: /Stop now/ })).toBeVisible();
+    await expect(bar).toContainText("Demo 1/1");
+
+    // Pressed again: the demo stops at once, DataLab Web left to visitors.
+    await page.keyboard.press("Shift+F12");
+    await expect(badge).toHaveText(
+      "Showcase stopped — Shift+F12 to resume, Esc to quit",
+      { timeout: 60_000 },
+    );
+    await expect(bar).toBeHidden();
+    const stopped = await showcaseStatus(page);
+    expect(stopped.state).toBe("stopped");
+    expect(stopped.results).toMatchObject([
+      { id: "w1", status: "interrupted" },
+    ]);
+    await page.keyboard.press("Escape");
+    await expect.poll(() => showcaseState(page)).toBe("aborted");
   });
 
   test("plays the demos chosen in the welcome menu", async ({ page }) => {

@@ -34,6 +34,8 @@ export interface MenuSettings {
   fullscreen: boolean;
   /** Reload the page every N loops (0: never). */
   reloadEvery: number;
+  /** Show the operator's control bar while the demos play. */
+  controls: boolean;
   /** Language chosen in the menu (``null``: the visitor's preference). */
   lang: Locale | null;
 }
@@ -45,6 +47,7 @@ export function defaultSettings(): MenuSettings {
     pace: "normal",
     fullscreen: true,
     reloadEvery: DEFAULT_RELOAD_EVERY,
+    controls: true,
     lang: null,
   };
 }
@@ -61,6 +64,7 @@ const VALID: {
     Number.isInteger(value) &&
     (value as number) >= 0 &&
     (value as number) <= MAX_RELOAD_EVERY,
+  controls: (value) => typeof value === "boolean",
   lang: (value) =>
     value === null || (SUPPORTED_LOCALES as unknown[]).includes(value),
 };

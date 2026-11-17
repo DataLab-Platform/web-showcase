@@ -30,6 +30,7 @@ describe("menu settings", () => {
       pace: "normal",
       fullscreen: true,
       reloadEvery: DEFAULT_RELOAD_EVERY,
+      controls: true,
       lang: null,
     });
   });
@@ -42,6 +43,7 @@ describe("menu settings", () => {
       pace: "fast" as const,
       fullscreen: false,
       reloadEvery: 0,
+      controls: false,
       lang: "fr" as const,
     };
     expect(saveSettings(settings, storage)).toBe(true);
@@ -57,6 +59,7 @@ describe("menu settings", () => {
         pace: "turbo",
         fullscreen: false,
         reloadEvery: 1.5,
+        controls: "no",
         lang: "de",
         unknown: 1,
       }),
@@ -68,6 +71,9 @@ describe("menu settings", () => {
       DEFAULT_RELOAD_EVERY,
     );
     expect(parseSettings([1, 2])).toEqual(defaultSettings());
+    // Settings saved before the control bar existed: shown.
+    expect(parseSettings({ loop: true }).controls).toBe(true);
+    expect(parseSettings({ controls: false }).controls).toBe(false);
     warn.mockRestore();
   });
 
