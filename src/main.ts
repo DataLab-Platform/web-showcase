@@ -7,14 +7,18 @@
 import "./showcase.css";
 import { AppFrame } from "./frame";
 import { setLocale, t } from "./i18n";
+import { WelcomeMenu } from "./menu";
 import {
   frameUrl,
+  isMenuRequested,
   parseShowcaseParams,
   resolveAppUrl,
   resolveLocale,
 } from "./options";
 import { ShowcaseOverlay } from "./overlay";
 import { ShowcasePlayer } from "./player";
+import { NATIVE_SCENARIOS } from "./scenarios";
+import { loadSettings } from "./settings";
 
 function storedAppLanguage(): string | null {
   try {
@@ -26,8 +30,12 @@ function storedAppLanguage(): string | null {
 
 function start(): void {
   const options = parseShowcaseParams(window.location.search);
+  // Without any playing parameter, the operator chooses in a welcome menu.
+  const settings = isMenuRequested(window.location.search)
+    ? loadSettings()
+    : null;
   const locale = resolveLocale(
-    options.lang,
+    options.lang ?? settings?.lang ?? null,
     storedAppLanguage(),
     navigator.languages ?? [navigator.language],
   );
@@ -73,7 +81,24 @@ function start(): void {
     document.body,
     frameUrl(app.url, locale, window.location.origin),
   );
-  void new ShowcasePlayer(frame, options, overlay).play();
+  const menu =
+    settings &&
+    new WelcomeMenu({
+      settings,
+      locale,
+      demos: NATIVE_SCENARIOS,
+      hostHref: window.location.href,
+      onLanguage(lang) {
+        // DataLab Web takes its language when it loads: the page starts
+        // again in that language, the menu choices kept. A discarded frame
+        // never asks "leave the page?".
+        frame.unload();
+        const url = new URL(window.location.href);
+        url.searchParams.set("lang", lang);
+        window.location.replace(url.href);
+      },
+    });
+  void new ShowcasePlayer(frame, options, overlay, menu).play();
 }
 
 start();

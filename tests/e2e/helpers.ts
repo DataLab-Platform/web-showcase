@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 /** Progress of the showcase (``window.__showcase``, see src/player.ts). */
 export interface ShowcaseStatus {
   state: string;
+  options: Record<string, unknown>;
   loop: number;
   playlist: string[];
   results: {
@@ -23,18 +24,27 @@ export async function waitForShowcase(
   timeoutMs: number,
 ): Promise<ShowcaseStatus> {
   await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            (window as unknown as { __showcase?: ShowcaseStatus }).__showcase
-              ?.state ?? null,
-        ),
-      { timeout: timeoutMs, intervals: [2_000] },
-    )
+    .poll(() => showcaseState(page), {
+      timeout: timeoutMs,
+      intervals: [2_000],
+    })
     .toMatch(/^(done|aborted|error)$/);
+  return showcaseStatus(page);
+}
+
+/** Progress of the showcase. */
+export function showcaseStatus(page: Page): Promise<ShowcaseStatus> {
   return page.evaluate(
     () => (window as unknown as { __showcase: ShowcaseStatus }).__showcase,
+  );
+}
+
+/** State of the showcase (``null`` before it starts). */
+export function showcaseState(page: Page): Promise<string | null> {
+  return page.evaluate(
+    () =>
+      (window as unknown as { __showcase?: ShowcaseStatus }).__showcase
+        ?.state ?? null,
   );
 }
 

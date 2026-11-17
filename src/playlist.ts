@@ -43,17 +43,24 @@ export async function buildPlaylist(
   return interleave(NATIVE_SCENARIOS, await createApplicationScenarios(ctx));
 }
 
-/** Keep the demos whose id is in ``ids`` (all when ``null``), in playlist
- *  order; ``unknown`` lists the ids matching no demo. */
+/** Keep the demos whose id is in ``ids`` (all when ``null``) and not in
+ *  ``skip``, in playlist order; ``unknown`` lists the ids of ``ids``
+ *  matching no demo (unknown ids of ``skip`` are ignored, e.g. a removed
+ *  application plugin). */
 export function selectScenarios<T extends { id: string }>(
   all: readonly T[],
   ids: readonly string[] | null,
+  skip: readonly string[] = [],
 ): { scenarios: T[]; unknown: string[] } {
-  if (!ids) return { scenarios: [...all], unknown: [] };
+  const skipped = new Set(skip.map((id) => id.toLowerCase()));
+  const kept = all.filter(
+    (scenario) => !skipped.has(scenario.id.toLowerCase()),
+  );
+  if (!ids) return { scenarios: kept, unknown: [] };
   const wanted = new Set(ids.map((id) => id.toLowerCase()));
   const known = new Set(all.map((scenario) => scenario.id.toLowerCase()));
   return {
-    scenarios: all.filter((scenario) => wanted.has(scenario.id.toLowerCase())),
+    scenarios: kept.filter((scenario) => wanted.has(scenario.id.toLowerCase())),
     unknown: ids.filter((id) => !known.has(id.toLowerCase())),
   };
 }

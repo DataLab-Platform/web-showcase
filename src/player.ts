@@ -14,6 +14,10 @@
  * Web): F9 pauses/resumes; Shift+F12 stops after the current demo and
  * leaves DataLab Web to the visitors, then resumes when pressed again; Esc
  * quits once stopped.
+ *
+ * With a welcome menu (:class:`ShowcaseSetup`), DataLab Web boots and the
+ * demos are listed while the operator chooses; the demos start once they
+ * press Start.
  */
 
 import {
@@ -33,6 +37,7 @@ import { typingReport, type TypingReport } from "./codemirror";
 
 export type ShowcaseState =
   | "booting"
+  | "menu"
   | "running"
   | "stopped"
   | "done"
@@ -72,6 +77,25 @@ declare global {
   }
 }
 
+/** Choices of the welcome menu applied to the options. */
+export type SetupChoice = Pick<
+  ShowcaseOptions,
+  "skip" | "loop" | "speed" | "reloadEvery"
+>;
+
+/** Welcome menu (see ``./menu``), open while DataLab Web boots. */
+export interface ShowcaseSetup {
+  /** Boot status of DataLab Web (``ready``: it has started and the demos
+   *  are listed). */
+  setStatus(text: string, ready?: boolean): void;
+  /** Every available demo, once the application plugins are listed. */
+  setDemos(scenarios: readonly ShowcaseScenario[]): void;
+  /** The operator's choices, once they press Start. */
+  readonly choice: Promise<SetupChoice>;
+  /** Close the menu, e.g. when the showcase cannot start. */
+  close(): void;
+}
+
 /** Time left to the browser to close the window (``close=1``) before the
  *  showcase concludes that it refused to. */
 const CLOSE_GRACE_MS = 1500;
@@ -95,8 +119,9 @@ export class ShowcasePlayer {
 
   constructor(
     private readonly frame: AppFrame,
-    private readonly options: ShowcaseOptions,
+    private options: ShowcaseOptions,
     overlay: ShowcaseOverlay,
+    private readonly setup: ShowcaseSetup | null = null,
   ) {
     this.overlay = options.check ? null : overlay;
     this.status = {
@@ -132,15 +157,10 @@ export class ShowcasePlayer {
       await this.frame.start(
         this.abort.signal,
         (text) =>
-          this.overlay?.cardStatus(
+          this.bootStatus(
             text || t("Please wait until the Python runtime is ready."),
-            "boot",
           ),
-        () =>
-          this.overlay?.cardStatus(
-            t("DataLab Web did not start, trying again…"),
-            "boot",
-          ),
+        () => this.bootStatus(t("DataLab Web did not start, trying again…")),
       );
       ctx.markFresh();
       this.status.state = "running";
@@ -148,9 +168,20 @@ export class ShowcasePlayer {
         this.overlay.mount();
         this.overlay.shield(true, () => this.onShieldPointer());
       }
-      this.overlay?.cardStatus(t("Looking for application plugins…"), "boot");
+      this.bootStatus(t("Looking for application plugins…"));
       const all = await buildPlaylist(ctx);
-      const { scenarios, unknown } = selectScenarios(all, this.options.ids);
+      if (this.setup) {
+        this.setup.setDemos(all);
+        this.setup.setStatus(t("DataLab Web is ready."), true);
+        this.status.state = "menu";
+        this.applyChoice(await this.setup.choice);
+        this.status.state = "running";
+      }
+      const { scenarios, unknown } = selectScenarios(
+        all,
+        this.options.ids,
+        this.options.skip,
+      );
       this.status.playlist = scenarios.map((scenario) => scenario.id);
       for (const id of unknown) {
         ctx.log(`unknown demo "${id}"`);
@@ -235,6 +266,7 @@ export class ShowcasePlayer {
     } finally {
       removeHotkeys();
       unsubscribe();
+      this.setup?.close();
       this.status.current = null;
       if (!reloading && !closing && this.status.state !== "error") {
         // The visitors get DataLab Web back.
@@ -242,6 +274,19 @@ export class ShowcasePlayer {
       }
     }
     return this.status;
+  }
+
+  /** Status line of the boot card, also shown by the welcome menu. */
+  private bootStatus(text: string): void {
+    this.overlay?.cardStatus(text, "boot");
+    this.setup?.setStatus(text);
+  }
+
+  /** Apply the choices of the welcome menu. */
+  private applyChoice(choice: SetupChoice): void {
+    this.options = { ...this.options, ...choice };
+    this.status.options = this.options;
+    this.ctx.setSpeed(this.options.speed);
   }
 
   /** Card covering DataLab Web while it boots. */
