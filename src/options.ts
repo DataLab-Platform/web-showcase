@@ -8,7 +8,8 @@
  *   a fast functional test without overlays);
  *   ``lang=en|fr``: language of the captions, also passed to DataLab Web;
  *   ``reload=N``: reload the page every N loops (default 5, 0 = never);
- *   ``close=1``: one pass, then close the window (DataLab desktop interlude);
+ *   `close=1`: one pass, then close the window (DataLab desktop interlude);
+ *   `controls=0`: no control bar for the operator (kiosks);
  *   ``app=<url>``: DataLab Web to drive (same origin only, default
  *   ``../web/``).
  *
@@ -30,6 +31,7 @@ export const PLAY_PARAMETERS = [
   "check",
   "close",
   "reload",
+  "controls",
 ] as const;
 
 /** Paces of the welcome menu and their ``speed``, as in DataLab desktop. */
@@ -67,10 +69,20 @@ export interface ShowcaseOptions {
   /** Close the window after one pass (``close=1``): a "web interlude" opened
    *  by DataLab desktop in a dedicated app window. Implies a single pass. */
   close: boolean;
+  /** Control bar shown when the operator moves the mouse (`controls=0`
+   *  disables it, e.g. for kiosks). */
+  controls: boolean;
   /** Language requested by the URL (``null``: the visitor's preference). */
   lang: Locale | null;
   /** DataLab Web URL requested by the URL (``null``: the default one). */
   app: string | null;
+}
+
+function isFalse(value: string | null): boolean {
+  return (
+    value !== null &&
+    ["0", "false", "no", "off"].includes(value.trim().toLowerCase())
+  );
 }
 
 function isTrue(value: string | null): boolean {
@@ -135,6 +147,7 @@ export function parseShowcaseParams(search: string): ShowcaseOptions {
         ? reloadValue
         : DEFAULT_RELOAD_EVERY,
     close,
+    controls: !isFalse(params.get("controls")),
     lang: normalizeLocale(params.get("lang")),
     app,
   };
@@ -208,6 +221,7 @@ export interface PlayChoice {
   loop: boolean;
   speed: number;
   reloadEvery: number;
+  controls: boolean;
   lang: Locale;
 }
 
@@ -235,6 +249,7 @@ export function playUrl(hostHref: string, choice: PlayChoice): string {
     }
   }
   if (choice.speed !== 1) params.push(["speed", String(choice.speed)]);
+  if (!choice.controls) params.push(["controls", "0"]);
   params.push(["lang", choice.lang], ...kept);
   url.search = params
     .map(([name, value]) => `${encodeParam(name)}=${encodeParam(value)}`)

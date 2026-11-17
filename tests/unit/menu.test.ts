@@ -113,6 +113,7 @@ describe("welcome menu", () => {
     change(labelled("Loop"), true);
     change(labelled("Reload every"), "0");
     change(labelled("Pace"), "fast");
+    change(labelled("Control bar"), false);
     startButton().click();
 
     const skip = ["app:gone", "w2"];
@@ -121,6 +122,7 @@ describe("welcome menu", () => {
       loop: true,
       speed: 0.7,
       reloadEvery: 0,
+      controls: false,
     });
     expect(calls.saved).toEqual([
       {
@@ -129,11 +131,12 @@ describe("welcome menu", () => {
         pace: "fast",
         fullscreen: true,
         reloadEvery: 0,
+        controls: false,
         lang: "en",
       },
     ]);
     expect(calls.urls).toEqual([
-      `${HOST}?demos=all&skip=app:gone,w2&loop=1&reload=0&speed=0.7&lang=en`,
+      `${HOST}?demos=all&skip=app:gone,w2&loop=1&reload=0&speed=0.7&controls=0&lang=en`,
     ]);
     expect(calls.fullscreen).toBe(1);
     expect(menu.isOpen).toBe(false);
@@ -141,7 +144,10 @@ describe("welcome menu", () => {
   });
 
   it("keeps the kiosk link in step, the reload period for a loop only", () => {
-    const { calls } = openMenu({ fullscreen: false });
+    const { calls } = openMenu({ fullscreen: false, controls: false });
+    expect((labelled("Control bar") as HTMLInputElement).checked).toBe(false);
+    expect(link()).toBe(`${HOST}?demos=all&controls=0&lang=en`);
+    change(labelled("Control bar"), true);
     expect(link()).toBe(`${HOST}?demos=all&lang=en`);
     const reload = labelled("Reload every");
     expect(reload.disabled).toBe(true);

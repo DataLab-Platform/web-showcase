@@ -37,6 +37,7 @@ const LOGO_URL = `${import.meta.env.BASE_URL}DataLab.svg`;
 export class ShowcaseOverlay {
   private root: HTMLDivElement | null = null;
   private badgeTimer = 0;
+  private persistentBadge: { text: string; kind: BadgeKind } | null = null;
 
   /** Attach the layer and hide the real pointer (autoplay mode). */
   mount(): void {
@@ -47,6 +48,7 @@ export class ShowcaseOverlay {
   /** Remove every overlay and restore the real pointer. */
   unmount(): void {
     window.clearTimeout(this.badgeTimer);
+    this.persistentBadge = null;
     this.root?.remove();
     this.root = null;
     document.documentElement.removeAttribute("data-showcase");
@@ -203,22 +205,28 @@ export class ShowcaseOverlay {
   }
 
   /** Show a status badge (top right); ``null`` hides it. With a duration,
-   *  the badge disappears by itself. */
+   *  the badge is transient: it disappears by itself, the persistent badge
+   *  (if any) coming back. */
   badge(text: string | null, kind: BadgeKind = "info", durationMs = 0): void {
     window.clearTimeout(this.badgeTimer);
-    if (!text) {
-      this.removePart("showcase-badge");
+    if (durationMs > 0 && text) {
+      this.showBadge(text, kind);
+      this.badgeTimer = window.setTimeout(() => {
+        const persistent = this.persistentBadge;
+        if (persistent) this.showBadge(persistent.text, persistent.kind);
+        else this.removePart("showcase-badge");
+      }, durationMs);
       return;
     }
+    this.persistentBadge = text ? { text, kind } : null;
+    if (text) this.showBadge(text, kind);
+    else this.removePart("showcase-badge");
+  }
+
+  private showBadge(text: string, kind: BadgeKind): void {
     const el = this.part("showcase-badge");
     el.textContent = text;
     el.className = `showcase-badge showcase-badge--${kind}`;
-    if (durationMs > 0) {
-      this.badgeTimer = window.setTimeout(
-        () => this.removePart("showcase-badge"),
-        durationMs,
-      );
-    }
   }
 
   /** Persistent label (top centre) flagging the current demo, e.g. a

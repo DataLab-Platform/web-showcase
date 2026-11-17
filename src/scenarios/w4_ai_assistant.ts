@@ -1,6 +1,6 @@
 import {
+  isOperatorStop,
   isVisible,
-  ShowcaseAborted,
   text,
   type ShowcaseContext,
   type ShowcaseScenario,
@@ -249,7 +249,7 @@ async function newConversation(
     try {
       await ctx.waitFor(() => bubbleCount(ctx) > 0, 5_000);
     } catch (error) {
-      if (error instanceof ShowcaseAborted) throw error;
+      if (isOperatorStop(error)) throw error;
     }
   }
   if (bubbleCount(ctx) > 0) {
