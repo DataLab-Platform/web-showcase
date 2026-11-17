@@ -30,13 +30,15 @@ import { AppBridge, AppFrame, type FrameWindow, type Point } from "./frame";
 import { appLabels, isAppLabel, t } from "./i18n";
 import type { ShowcaseOverlay } from "./overlay";
 import {
+  isOperatorStop,
   PauseController,
   ShowcaseAborted,
+  ShowcaseInterrupted,
   sleep,
   throwIfAborted,
 } from "./pause";
 
-export { ShowcaseAborted };
+export { isOperatorStop, ShowcaseAborted, ShowcaseInterrupted };
 export type { Point };
 
 /** Throw from a scenario to skip it gracefully (missing prerequisite). */
@@ -423,7 +425,8 @@ export class ShowcaseContext {
   readonly frame: AppFrame;
   /** Read-only queries of the workspace (remote-control bridge). */
   readonly bridge: AppBridge;
-  /** Pace multiplier (0 in check mode, see :meth:`setSpeed`). */
+  /** Pace multiplier chosen by the operator (0 in check mode, see
+   *  :meth:`setSpeed`). */
   private pace: number;
   /** Check mode: no pauses, no overlays, no pointer animation. */
   readonly check: boolean;
@@ -462,15 +465,26 @@ export class ShowcaseContext {
     this.signal = opts.signal;
   }
 
-  /** Pace multiplier (1 = normal, 0 in check mode). */
+  /** Effective pace multiplier (1 = normal, 0 in check mode): the chosen
+   *  pace, faster while skipping to the next step. */
   get speed(): number {
+    return this.pace * this.pause.stepFactor;
+  }
+
+  /** Pace multiplier chosen by the operator (see :meth:`setSpeed`). */
+  get baseSpeed(): number {
     return this.pace;
   }
 
-  /** Change the pace, e.g. once chosen in the welcome menu (none in check
-   *  mode). */
+  /** Change the pace, e.g. once chosen in the welcome menu or live (none
+   *  in check mode). Holds and glides under way follow at once. */
   setSpeed(speed: number): void {
     if (!this.check) this.pace = Math.max(0.05, speed);
+  }
+
+  /** Number of the current step (captions shown in the current demo). */
+  get step(): number {
+    return this.stepCount;
   }
 
   /** Document of DataLab Web (the iframe). */
@@ -494,21 +508,27 @@ export class ShowcaseContext {
    *  Frozen while the operator has paused the showcase (F9). */
   async hold(ms = 750): Promise<void> {
     if (this.check) {
-      throwIfAborted(this.signal);
+      await this.gate();
       return;
     }
-    await this.pause.hold(ms * this.speed, this.signal);
+    await this.pause.hold(ms, () => this.speed, this.signal);
   }
 
   /** Short real delay letting React re-render after an event. */
   settle(): Promise<void> {
-    return sleep(this.check ? 30 : 60, this.signal);
+    return this.pause.wait(this.check ? 30 : 60, this.signal);
   }
 
   /** Real delay of ``ms`` (not scaled by the pace, also in check mode),
    *  e.g. for a debounced save of DataLab Web. */
   delay(ms: number): Promise<void> {
-    return sleep(ms, this.signal);
+    return this.pause.wait(ms, this.signal);
+  }
+
+  /** Pause point of every primitive: waits during an immediate pause
+   *  (returns the paused time) and raises an interruption. */
+  private gate(): Promise<number> {
+    return this.pause.gate(this.signal);
   }
 
   /**
@@ -533,15 +553,16 @@ export class ShowcaseContext {
   ): Promise<T | HTMLElement> {
     const probe =
       typeof target === "string" ? () => this.visible(target) : target;
-    const deadline = Date.now() + timeoutMs;
+    let deadline = Date.now() + timeoutMs;
     for (;;) {
-      throwIfAborted(this.signal);
+      // An immediate pause freezes the timeout.
+      deadline += await this.gate();
       let value: T | HTMLElement | null | undefined | false = null;
       try {
         value = probe();
       } catch (error) {
         // The document may be replaced while it loads.
-        if (error instanceof ShowcaseAborted) throw error;
+        if (isOperatorStop(error)) throw error;
       }
       if (value) return value;
       if (Date.now() >= deadline) {
@@ -564,13 +585,14 @@ export class ShowcaseContext {
     timeoutMs = 0,
   ): Promise<void> {
     const probe = typeof condition === "function" ? condition : () => condition;
-    const deadline = Date.now() + timeoutMs;
+    let deadline = Date.now() + timeoutMs;
     for (;;) {
-      throwIfAborted(this.signal);
+      deadline += await this.gate();
       let ok: boolean;
       try {
         ok = Boolean(await probe());
-      } catch {
+      } catch (error) {
+        if (isOperatorStop(error)) throw error;
         ok = false;
       }
       if (ok) return;
@@ -592,6 +614,7 @@ export class ShowcaseContext {
         : "";
       this.overlay.caption(head, text, { position: opts.position });
     }
+    this.pause.captionShown();
     await this.hold(holdMs);
   }
 
@@ -624,8 +647,11 @@ export class ShowcaseContext {
     during?: () => Promise<void>,
   ): Promise<void> {
     this.log(`title card: ${title}`);
+    // An interruption never leaves the workspace half reset: it applies
+    // once ``during`` has run.
+    const run = during && (() => this.pause.protect(during));
     if (!this.overlay) {
-      if (during) await during();
+      if (run) await run();
       return;
     }
     this.overlay.clearCaption();
@@ -637,7 +663,7 @@ export class ShowcaseContext {
     });
     try {
       const started = Date.now();
-      if (during) await during();
+      if (run) await run();
       const elapsed = (Date.now() - started) / this.speed;
       await this.hold(Math.max(0, holdMs - elapsed));
     } finally {
@@ -738,7 +764,7 @@ export class ShowcaseContext {
       el.scrollIntoView({ block: "nearest", inline: "nearest" });
       to = center(el);
     }
-    if (!this.overlay || opts.instant) {
+    if (!this.overlay || opts.instant || this.pause.unwinding) {
       this.pointerAt(to);
       return;
     }
@@ -762,6 +788,7 @@ export class ShowcaseContext {
     }
     await this.moveTo(el, opts);
     if (this.overlay && !opts.instant) await this.hold(140);
+    await this.gate();
     const point = this.pointer ?? center(el);
     this.ripple(point);
     fire(el, "pointerdown", point, { buttons: 1 });
@@ -785,6 +812,7 @@ export class ShowcaseContext {
   async clickAt(point: Point, opts: PointerOptions = {}): Promise<void> {
     await this.moveTo(point, opts);
     if (this.overlay && !opts.instant) await this.hold(140);
+    await this.gate();
     this.ripple(point);
     const down = this.buttonDown(point);
     this.buttonUp(point, down);
@@ -805,6 +833,7 @@ export class ShowcaseContext {
     await this.moveTo(start, opts);
     if (this.overlay && !opts.instant) await this.hold(200);
     const path = Array.isArray(to) ? to : [to];
+    await this.gate();
     const down = this.buttonDown(start);
     let end = start;
     try {
@@ -873,16 +902,21 @@ export class ShowcaseContext {
     afterEach?: () => Promise<void>,
   ): Promise<void> {
     if (this.check) {
+      await this.gate();
       insert(value);
       await afterEach?.();
       return;
     }
-    const delay = (1000 / Math.max(1, cps)) * this.speed;
+    // Normal-pace delay between keystrokes, the current pace applied by
+    // the hold (it may change while typing).
+    const delay = 1000 / Math.max(1, cps);
     for (const chunk of typingChunks(value)) {
       const started = Date.now();
+      await this.gate();
       insert(chunk);
       await afterEach?.();
-      await this.pause.hold(delay - (Date.now() - started), this.signal);
+      const spent = (Date.now() - started) / Math.max(0.01, this.speed);
+      await this.pause.hold(delay - spent, () => this.speed, this.signal);
     }
   }
 
@@ -923,6 +957,7 @@ export class ShowcaseContext {
       composed: true,
       view: win,
     };
+    await this.gate();
     el.dispatchEvent(new win.KeyboardEvent("keydown", init));
     el.dispatchEvent(new win.KeyboardEvent("keyup", init));
     await this.settle();
@@ -936,6 +971,7 @@ export class ShowcaseContext {
     }
     await this.click(el);
     const win = windowOf(el);
+    await this.gate();
     setFieldValue(el as HTMLSelectElement, value);
     el.dispatchEvent(new win.Event("input", { bubbles: true }));
     el.dispatchEvent(new win.Event("change", { bubbles: true }));
@@ -1097,7 +1133,7 @@ export class ShowcaseContext {
           1_500,
         );
       } catch (error) {
-        if (error instanceof ShowcaseAborted) throw error;
+        if (isOperatorStop(error)) throw error;
         continue;
       }
       const label = normalizeLabel(
@@ -1161,7 +1197,7 @@ export class ShowcaseContext {
     try {
       dialog = await this.waitFor(selector, timeoutMs);
     } catch (error) {
-      if (error instanceof ShowcaseAborted) throw error;
+      if (isOperatorStop(error)) throw error;
       return false;
     }
     await this.hold(600);
@@ -1420,7 +1456,7 @@ export class ShowcaseContext {
         "a confirmation dialog",
       );
     } catch (error) {
-      if (error instanceof ShowcaseAborted) throw error;
+      if (isOperatorStop(error)) throw error;
       return false;
     }
     await this.hold(500);
@@ -1438,6 +1474,7 @@ export class ShowcaseContext {
   endScenario(): void {
     this.overlay?.clearAll();
     this.scenario = null;
+    this.pause.endScenario();
   }
 
   // -- Internals -------------------------------------------------------------------
@@ -1513,12 +1550,23 @@ export class ShowcaseContext {
       y: viewport.height * 0.62,
     };
     const distance = Math.hypot(to.x - from.x, to.y - from.y);
-    const duration = Math.min(900, Math.max(220, distance * 0.9)) * this.speed;
-    const started = performance.now();
+    // Normal-pace duration, the current pace being read at each frame.
+    const duration = Math.min(900, Math.max(220, distance * 0.9));
+    let progress = 0;
+    let last = performance.now();
     for (;;) {
       await nextFrame(this.signal);
-      await this.pause.waitWhilePaused(this.signal);
-      const progress = Math.min(1, (performance.now() - started) / duration);
+      const paused = await this.pause.pausePoint(this.signal);
+      if (this.pause.unwinding) {
+        this.pointerAt(to);
+        return;
+      }
+      const now = performance.now();
+      if (paused === 0) {
+        progress += (now - last) / (duration * Math.max(0.01, this.speed));
+      }
+      last = now;
+      progress = Math.min(1, progress);
       const eased =
         progress < 0.5
           ? 2 * progress * progress

@@ -9,7 +9,8 @@ export interface ShowcaseStatus {
   results: {
     id: string;
     title: string;
-    status: "passed" | "failed" | "skipped";
+    /** ``interrupted``: ended by the operator, not a failure. */
+    status: "passed" | "failed" | "skipped" | "interrupted";
     error?: string;
     durationMs: number;
   }[];
@@ -59,7 +60,10 @@ export function logShowcase(page: Page): void {
   page.on("pageerror", (error) => console.log(`[pageerror] ${error.message}`));
 }
 
-/** Every demo passed (or was skipped for a missing prerequisite). */
+/**
+ * Every demo passed (or was skipped for a missing prerequisite, or was
+ * interrupted by the operator).
+ */
 export function expectAllPassed(status: ShowcaseStatus): void {
   const failures = status.results
     .filter((result) => result.status === "failed")
@@ -67,6 +71,6 @@ export function expectAllPassed(status: ShowcaseStatus): void {
   expect(failures, failures.join("\n")).toEqual([]);
   expect(status.state).toBe("done");
   for (const result of status.results) {
-    expect(["passed", "skipped"]).toContain(result.status);
+    expect(["passed", "skipped", "interrupted"]).toContain(result.status);
   }
 }

@@ -8,11 +8,12 @@ The showcase is a static page that shows DataLab Web full screen and plays scrip
 
 ## Welcome menu
 
-Opened without any playing parameter (`demos`, `skip`, `loop`, `speed`, `check`, `close`, `reload`; `lang` and `app` still apply), the showcase shows a welcome menu, like the Showcase mode dialog of DataLab desktop (Plugins > DataLab Showcase):
+Opened without any playing parameter (`demos`, `skip`, `loop`, `speed`, `check`, `close`, `reload`, `controls`; `lang` and `app` still apply), the showcase shows a welcome menu, like the Showcase mode dialog of DataLab desktop (Plugins > DataLab Showcase):
 
 - **Demos** to play: the native demos are listed at once, the demos of the application plugins once DataLab Web lists them. DataLab Web starts behind the menu (its status is shown at the bottom), so that the demos start without waiting.
 - **Loop**, with the page reload period (every N loops, `0` for never).
 - **Pace**: slow, normal or fast (the factors of DataLab desktop: `speed` 1.5, 1 and 0.7).
+- **Control bar** of the operator, shown when the mouse moves (uncheck it on an unattended booth).
 - **Full screen**, requested when Start is pressed (the browser leaves it when the page reloads: on an unattended booth, prefer the kiosk mode).
 - **Language** of the captions and of DataLab Web (the page starts again in that language, the choices kept).
 - **Kiosk link**: the URL playing these choices without the menu, with a Copy button.
@@ -51,18 +52,19 @@ The playlist is `w1`, the first application plugin, `w2`, the second application
 
 ## URL parameters
 
-Any of the parameters `demos`, `skip`, `loop`, `speed`, `check`, `close` and `reload` starts the demos at once, without the welcome menu.
+Any of the parameters `demos`, `skip`, `loop`, `speed`, `check`, `close`, `reload` and `controls` starts the demos at once, without the welcome menu.
 
-| Parameter | Values                                    | Default   | Effect                                                                                                    |
-| --------- | ----------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
-| `demos`   | `all`, or a list such as `w1,w3,app:<id>` | `all`     | Demos to play, in playlist order.                                                                         |
-| `skip`    | a list such as `w4,app:<id>`              | none      | Demos left out of `demos` (unknown ids are ignored, e.g. a removed application plugin).                   |
-| `loop`    | `1`                                       | one pass  | Play the demos again and again.                                                                           |
-| `speed`   | number, e.g. `0.7` (faster) or `1.4`      | `1`       | Pace of every pause and pointer motion. `0` selects the check mode (no pauses, no overlays, single pass). |
-| `lang`    | `en`, `fr`                                | see below | Language of the captions, also passed to DataLab Web.                                                     |
-| `reload`  | number of loops, `0` for never            | `5`       | Reload the page (and DataLab Web) every N loops, with `loop=1`.                                           |
-| `close`   | `1`                                       | off       | One pass, the end card, then close the window (DataLab desktop interlude).                                |
-| `app`     | URL of DataLab Web, **same origin**       | `../web/` | DataLab Web to drive, e.g. a preview deployment.                                                          |
+| Parameter  | Values                                    | Default   | Effect                                                                                                    |
+| ---------- | ----------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
+| `demos`    | `all`, or a list such as `w1,w3,app:<id>` | `all`     | Demos to play, in playlist order.                                                                         |
+| `skip`     | a list such as `w4,app:<id>`              | none      | Demos left out of `demos` (unknown ids are ignored, e.g. a removed application plugin).                   |
+| `loop`     | `1`                                       | one pass  | Play the demos again and again.                                                                           |
+| `speed`    | number, e.g. `0.7` (faster) or `1.4`      | `1`       | Pace of every pause and pointer motion. `0` selects the check mode (no pauses, no overlays, single pass). |
+| `lang`     | `en`, `fr`                                | see below | Language of the captions, also passed to DataLab Web.                                                     |
+| `reload`   | number of loops, `0` for never            | `5`       | Reload the page (and DataLab Web) every N loops, with `loop=1`.                                           |
+| `close`    | `1`                                       | off       | One pass, the end card, then close the window (DataLab desktop interlude).                                |
+| `controls` | `0`                                       | on        | `0` hides the operator control bar (see below).                                                           |
+| `app`      | URL of DataLab Web, **same origin**       | `../web/` | DataLab Web to drive, e.g. a preview deployment.                                                          |
 
 Without `lang`, the showcase uses the language chosen in DataLab Web, else the browser language.
 
@@ -70,11 +72,19 @@ Without `lang`, the showcase uses the language chosen in DataLab Web, else the b
 
 While the demos play, the real mouse is held off (a click shows a "live demo" badge) and the keyboard keeps a few hotkeys, whether the focus is on the showcase or in DataLab Web:
 
-| Key       | Effect                                                                                       |
-| --------- | -------------------------------------------------------------------------------------------- |
-| F9        | Pause or resume.                                                                             |
-| Shift+F12 | Stop after the current demo and leave DataLab Web to the visitors; press it again to resume. |
-| Esc       | Quit the showcase, once stopped.                                                             |
+| Key                    | Effect                                                                                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F9                     | Pause at the next pause of the demo; pressed again before that pause, pause at once (a Python computation already running in DataLab Web ends first); once paused, resume. |
+| Shift+F12              | Stop after the current demo and leave DataLab Web to the visitors; pressed again, stop now. Once stopped, press it again to resume.                                        |
+| Right arrow, Page Down | Next step: the demo plays fast up to its next caption (while paused: plays the next step, then pauses again).                                                              |
+| End                    | Next demo.                                                                                                                                                                 |
+| Home                   | Restart the current demo.                                                                                                                                                  |
+| + / −                  | Faster / slower pace (×0.5 to ×2, for this page only).                                                                                                                     |
+| Esc                    | Quit the showcase, once stopped.                                                                                                                                           |
+
+The navigation keys (arrows, Page Down, Home, End, +, −) only act while the demos play, not in the welcome menu nor once stopped, when the visitors use DataLab Web.
+
+**Control bar.** When the operator moves the mouse, a discreet bar shows up at the bottom of the page for 3 seconds (kept while hovered): pause, next step, next demo, restart, stop (then "Stop now" and "Cancel stop"), pace, and the progress (demo n/total, title, step, elapsed time). Touches do not show it. Disable it on a booth with `controls=0` or the **Control bar** checkbox of the welcome menu.
 
 ## The visitor's DataLab Web is left as it was
 

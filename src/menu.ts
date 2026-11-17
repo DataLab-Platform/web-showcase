@@ -129,6 +129,7 @@ export class WelcomeMenu implements ShowcaseSetup {
   private readonly reload: HTMLInputElement;
   private readonly pace: HTMLSelectElement;
   private readonly fullscreen: HTMLInputElement;
+  private readonly controls: HTMLInputElement;
   private readonly language: HTMLSelectElement;
   private readonly link: HTMLInputElement;
   private readonly copyNote: HTMLSpanElement;
@@ -180,7 +181,7 @@ export class WelcomeMenu implements ShowcaseSetup {
         "p",
         "showcase-menu-hotkeys",
         t(
-          "While the demos play: F9 pauses or resumes, Shift+F12 stops after the current demo (press it again to resume), Esc quits.",
+          "While the demos play: F9 pauses (twice: at once), Shift+F12 stops after the demo (twice: at once), → next step, End next demo, Home restart, + / − pace, Esc quits once stopped.",
         ),
       ),
     );
@@ -214,6 +215,11 @@ export class WelcomeMenu implements ShowcaseSetup {
       "The browser leaves full screen when the page reloads: on an unattended booth, prefer the kiosk link.",
     );
     this.fullscreen = fullscreenRow.querySelector("input")!;
+    const controlsRow = checkbox(t("Control bar"), settings.controls);
+    controlsRow.title = t(
+      "Shows the operator's controls when the mouse moves while the demos play.",
+    );
+    this.controls = controlsRow.querySelector("input")!;
     this.language = select(
       SUPPORTED_LOCALES,
       (locale) => LANGUAGE_NAMES[locale],
@@ -224,6 +230,7 @@ export class WelcomeMenu implements ShowcaseSetup {
       reloadRow,
       field(t("Pace"), this.pace),
       fullscreenRow,
+      controlsRow,
       field(t("Language"), this.language),
     );
     body.append(demos, options);
@@ -318,6 +325,7 @@ export class WelcomeMenu implements ShowcaseSetup {
         Number.isInteger(reload) && reload >= 0 && reload <= MAX_RELOAD_EVERY
           ? reload
           : this.opts.settings.reloadEvery,
+      controls: this.controls.checked,
       lang: this.language.value as Locale,
     };
   }
@@ -330,6 +338,7 @@ export class WelcomeMenu implements ShowcaseSetup {
       loop: settings.loop,
       speed: PACE_SPEEDS[settings.pace],
       reloadEvery: settings.reloadEvery,
+      controls: settings.controls,
       lang: this.opts.locale,
     });
   }
@@ -396,6 +405,7 @@ export class WelcomeMenu implements ShowcaseSetup {
       loop: settings.loop,
       speed: PACE_SPEEDS[settings.pace],
       reloadEvery: settings.reloadEvery,
+      controls: settings.controls,
     });
   }
 

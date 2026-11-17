@@ -11,15 +11,20 @@
  * desktop), a single pass ends by closing the window.
  *
  * Operator hotkeys (real keyboard only, on the host page and in DataLab
- * Web): F9 pauses/resumes; Shift+F12 stops after the current demo and
- * leaves DataLab Web to the visitors, then resumes when pressed again; Esc
- * quits once stopped.
+ * Web): F9 requests a pause (applied at the next hold), pressed again
+ * pauses at once, then resumes; Shift+F12 stops after the current demo,
+ * pressed again stops at once, and leaves DataLab Web to the visitors
+ * until pressed again (or Esc quits). While the demos play, → or Page Down
+ * skips to the next step, End to the next demo, Home restarts the demo and
+ * + / - change the pace; a control bar (``controls``) shows up when the
+ * operator moves the mouse.
  *
  * With a welcome menu (:class:`ShowcaseSetup`), DataLab Web boots and the
  * demos are listed while the operator chooses; the demos start once they
  * press Start.
  */
 
+import { ControlBar, rateLabel, type ControlView } from "./controls";
 import {
   PUBLIC_WEB_URL,
   ScenarioSkipped,
@@ -31,7 +36,7 @@ import { AppBridge, AppFrame, type FrameWindow } from "./frame";
 import { t } from "./i18n";
 import type { ShowcaseOptions } from "./options";
 import { ShowcaseOverlay } from "./overlay";
-import { PauseController, sleep } from "./pause";
+import { PauseController, sleep, stepPace } from "./pause";
 import { buildPlaylist, selectScenarios } from "./playlist";
 import { typingReport, type TypingReport } from "./codemirror";
 
@@ -49,7 +54,9 @@ export type ShowcaseState =
 export interface ShowcaseResult {
   id: string;
   title: string;
-  status: "passed" | "failed" | "skipped";
+  /** ``interrupted``: ended by the operator (next demo, restart, stop
+   *  now). */
+  status: "passed" | "failed" | "skipped" | "interrupted";
   error?: string;
   durationMs: number;
   loop: number;
@@ -80,7 +87,7 @@ declare global {
 /** Choices of the welcome menu applied to the options. */
 export type SetupChoice = Pick<
   ShowcaseOptions,
-  "skip" | "loop" | "speed" | "reloadEvery"
+  "skip" | "loop" | "speed" | "reloadEvery" | "controls"
 >;
 
 /** Welcome menu (see ``./menu``), open while DataLab Web boots. */
@@ -116,6 +123,15 @@ export class ShowcasePlayer {
   private readonly ctx: ShowcaseContext;
   private stopRequested = false;
   private idle = false;
+  /** What plays: a demo (title card included), the end card, or neither
+   *  (boot, welcome menu, between demos). */
+  private phase: "scenario" | "end" | null = null;
+  /** Operator's navigation once the current demo is interrupted. */
+  private pendingAction: "next" | "restart" | null = null;
+  private demoIndex = 0;
+  private demoTitle = "";
+  private demoStarted = 0;
+  private bar: ControlBar | null = null;
 
   constructor(
     private readonly frame: AppFrame,
@@ -199,15 +215,28 @@ export class ShowcasePlayer {
       this.overlay?.cardStatus(t("Preparing the demos…"), "boot");
       await this.prewarm(scenarios);
       await this.overlay?.clearCard(600, "boot");
+      this.createControlBar();
       for (let loop = 1; scenarios.length > 0; loop++) {
         this.status.loop = loop;
-        for (const scenario of scenarios) {
-          await this.playScenario(scenario, loop);
+        for (let index = 0; index < scenarios.length;) {
+          this.demoIndex = index;
+          this.pendingAction = null;
+          await this.playScenario(scenarios[index], loop);
+          const restart = this.pendingAction === "restart";
+          this.pendingAction = null;
           if (this.stopRequested) await this.waitWhileStopped();
+          if (!restart) index++;
         }
         // A window closing after this pass keeps its end card until it goes.
-        await ctx.endCard(5000, { keep: this.options.close });
+        this.phase = "end";
+        try {
+          await ctx.endCard(5000, { keep: this.options.close });
+        } finally {
+          this.phase = null;
+        }
         if (!this.options.loop) break;
+        // Stopped during the end card: before the next loop.
+        if (this.stopRequested) await this.waitWhileStopped();
         const { reloadEvery } = this.options;
         if (reloadEvery > 0 && loop % reloadEvery === 0) {
           // Same URL: the showcase restarts with a fresh DataLab Web. The
@@ -220,6 +249,7 @@ export class ShowcasePlayer {
           return this.status;
         }
       }
+      this.bar?.setActive(false);
       if (!this.options.close) {
         // DataLab Web may still be reloading (e.g. after W4): the visitors
         // get it back ready.
@@ -266,6 +296,8 @@ export class ShowcasePlayer {
     } finally {
       removeHotkeys();
       unsubscribe();
+      this.bar?.destroy();
+      this.bar = null;
       this.setup?.close();
       this.status.current = null;
       if (!reloading && !closing && this.status.state !== "error") {
@@ -389,7 +421,11 @@ export class ShowcasePlayer {
       loop,
     };
     this.status.current = scenario.id;
+    this.demoTitle = result.title;
+    this.demoStarted = performance.now();
+    this.phase = "scenario";
     ctx.beginScenario(scenario);
+    this.bar?.refresh();
     try {
       // The workspace is reset behind the title card.
       await ctx.titleCard(scenario.title(), scenario.subtitle?.(), 3000, () =>
@@ -398,20 +434,28 @@ export class ShowcasePlayer {
       await scenario.run(ctx);
     } catch (error) {
       if (error instanceof ShowcaseAborted) throw error;
-      result.error = errorMessage(error);
-      if (error instanceof ScenarioSkipped) {
-        result.status = "skipped";
-        ctx.log(`skipped: ${result.error}`);
-      } else {
-        result.status = "failed";
-        console.error(`[showcase] demo "${scenario.id}" failed`, error);
-        if (!ctx.check) {
-          await ctx
-            .notice(t("This demo hit a snag — moving on to the next one."))
-            .catch(() => undefined);
+      if (!this.pause.interrupted) {
+        result.error = errorMessage(error);
+        if (error instanceof ScenarioSkipped) {
+          result.status = "skipped";
+          ctx.log(`skipped: ${result.error}`);
+        } else {
+          result.status = "failed";
+          console.error(`[showcase] demo "${scenario.id}" failed`, error);
+          if (!ctx.check) {
+            await ctx
+              .notice(t("This demo hit a snag — moving on to the next one."))
+              .catch(() => undefined);
+          }
         }
       }
     } finally {
+      // Whatever the scenario raised once interrupted, it was interrupted.
+      if (this.pause.interrupted && result.status === "passed") {
+        result.status = "interrupted";
+        ctx.log("interrupted by the operator");
+      }
+      this.phase = null;
       ctx.endScenario();
       result.durationMs = Math.round(performance.now() - started);
       this.status.results.push(result);
@@ -424,6 +468,7 @@ export class ShowcasePlayer {
   private async waitWhileStopped(): Promise<void> {
     const ctx = this.ctx;
     this.idle = true;
+    this.bar?.setActive(false);
     this.status.state = "stopped";
     ctx.clearCaption();
     ctx.clearSpotlight();
@@ -439,6 +484,7 @@ export class ShowcasePlayer {
     this.status.state = "running";
     this.overlay?.setMode("autoplay");
     this.overlay?.shield(true, () => this.onShieldPointer());
+    this.bar?.setActive(true);
     this.updateBadge();
     ctx.log("resuming");
   }
@@ -449,17 +495,7 @@ export class ShowcasePlayer {
     const handler = (event: KeyboardEvent) => {
       // Only the operator's real keyboard: the demos' own (synthetic) key
       // presses must not drive the player.
-      if (!event.isTrusted) return;
-      if (event.key === "F9" && !event.ctrlKey && !event.altKey) {
-        this.pause.toggle();
-      } else if (event.key === "F12" && event.shiftKey) {
-        this.stopRequested = !this.stopRequested;
-        this.updateBadge();
-      } else if (event.key === "Escape" && this.idle) {
-        this.abort.abort();
-      } else {
-        return;
-      }
+      if (!event.isTrusted || !this.handleKey(event)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
@@ -482,17 +518,159 @@ export class ShowcasePlayer {
     };
   }
 
+  /** Run the operator's hotkey ``event``; returns whether it was one. */
+  private handleKey(event: KeyboardEvent): boolean {
+    if (event.key === "F9" && !event.ctrlKey && !event.altKey) {
+      this.pause.press();
+      return true;
+    }
+    if (event.key === "F12" && event.shiftKey) {
+      this.stopKey();
+      return true;
+    }
+    if (event.key === "Escape" && this.idle) {
+      this.abort.abort();
+      return true;
+    }
+    if (event.ctrlKey || event.altKey || event.metaKey) return false;
+    if (!this.navigable) return false;
+    switch (event.key) {
+      case "ArrowRight":
+      case "PageDown":
+        this.nextStep();
+        return true;
+      case "End":
+        this.nextDemo();
+        return true;
+      case "Home":
+        this.restart();
+        return true;
+      case "+":
+      case "=":
+        this.changePace(true);
+        return true;
+      case "-":
+        this.changePace(false);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** Whether the navigation (steps, demos, pace) applies: the demos play,
+   *  with the overlays (not in check mode). */
+  private get navigable(): boolean {
+    return this.overlay !== null && this.phase !== null && !this.idle;
+  }
+
+  /** Shift+F12: stop after the current demo, then stop now; once stopped,
+   *  resume. */
+  private stopKey(): void {
+    if (this.idle) {
+      this.stopRequested = false;
+    } else if (!this.stopRequested) {
+      this.stopRequested = true;
+      this.pause.release();
+    } else if (this.phase === "scenario") {
+      this.pause.interrupt();
+    } else if (this.phase === "end") {
+      this.pause.skipHold();
+    }
+    this.updateBadge();
+  }
+
+  /** Cancel a stop after the demo; a stop now cannot be cancelled. */
+  private cancelStop(): void {
+    if (this.idle || this.pause.interrupted) return;
+    this.stopRequested = false;
+    this.updateBadge();
+  }
+
+  private nextStep(): void {
+    if (this.phase === "scenario") this.pause.requestStep();
+    else if (this.phase === "end") this.pause.skipHold();
+  }
+
+  private nextDemo(): void {
+    if (this.phase === "scenario") {
+      this.pendingAction = "next";
+      this.pause.interrupt();
+    } else if (this.phase === "end") {
+      this.pause.skipHold();
+    }
+  }
+
+  private restart(): void {
+    if (this.phase !== "scenario") return;
+    this.pendingAction = "restart";
+    this.pause.interrupt();
+  }
+
+  /** ``+`` / ``-``: change the pace at once (not remembered). */
+  private changePace(faster: boolean): void {
+    const pace = stepPace(this.ctx.baseSpeed, faster);
+    this.ctx.setSpeed(pace);
+    this.ctx.log(`pace ${rateLabel(pace)}`);
+    this.overlay?.badge(
+      t("Pace {rate}", { rate: rateLabel(pace) }),
+      "info",
+      2000,
+    );
+    this.bar?.refresh();
+  }
+
+  /** Control bar, unless disabled (``controls=0``) or in check mode. */
+  private createControlBar(): void {
+    if (!this.overlay || !this.options.controls) return;
+    this.bar = new ControlBar(
+      {
+        pause: () => this.pause.press(),
+        nextStep: () => this.nextStep(),
+        nextDemo: () => this.nextDemo(),
+        restart: () => this.restart(),
+        stop: () => this.stopKey(),
+        cancelStop: () => this.cancelStop(),
+        slower: () => this.changePace(false),
+        faster: () => this.changePace(true),
+      },
+      () => this.controlView(),
+    );
+    this.bar.setActive(true);
+  }
+
+  private controlView(): ControlView {
+    return {
+      pause: this.pause.state,
+      stopPending: this.stopRequested && !this.pause.interrupted,
+      pace: this.ctx.baseSpeed,
+      demo: this.demoIndex + 1,
+      total: this.status.playlist.length,
+      title: this.demoTitle,
+      step: this.ctx.step,
+      ending: this.phase === "end",
+      elapsedMs: performance.now() - this.demoStarted,
+    };
+  }
+
   private updateBadge(): void {
+    this.bar?.refresh();
     if (!this.overlay) return;
-    if (this.pause.isPaused) {
+    const state = this.pause.state;
+    if (state === "paused") {
       this.overlay.badge(t("Paused — F9 to resume"), "pause");
+    } else if (state === "requested") {
+      this.overlay.badge(t("Pause requested — F9 again to pause now"), "pause");
+    } else if (state === "pausing") {
+      this.overlay.badge(t("Pausing… — F9 to resume"), "pause");
     } else if (this.idle) {
       this.overlay.badge(
         t("Showcase stopped — Shift+F12 to resume, Esc to quit"),
         "idle",
       );
     } else if (this.stopRequested) {
-      this.overlay.badge(t("Stopping after this demo — Shift+F12 to cancel"));
+      this.overlay.badge(
+        t("Stopping after this demo — Shift+F12 again to stop now"),
+      );
     } else {
       this.overlay.badge(null);
     }
