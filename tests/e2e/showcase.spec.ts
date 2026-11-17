@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectAllPassed, logShowcase, waitForShowcase } from "./helpers";
+import { SETTINGS_KEY } from "../../src/settings";
+import {
+  expectAllPassed,
+  logShowcase,
+  showcaseState,
+  showcaseStatus,
+  waitForShowcase,
+} from "./helpers";
 
 /**
  * The showcase plays every demo against a DataLab Web of the same origin,
@@ -159,5 +166,64 @@ test.describe("showcase check", () => {
     );
     await page.keyboard.press("Shift+F12");
     await expect(badge).toHaveCount(0);
+  });
+
+  test("plays the demos chosen in the welcome menu", async ({ page }) => {
+    test.setTimeout(10 * 60_000);
+    logShowcase(page);
+    await page.goto("/web-showcase/seed-visitor-state");
+    await page.evaluate((key) => localStorage.removeItem(key), SETTINGS_KEY);
+
+    // Without any playing parameter, the menu opens while DataLab Web boots.
+    await page.goto("/web-showcase/?lang=en");
+    const menu = page.locator(".showcase-menu");
+    await expect(menu.locator('input[data-demo="w1"]')).toBeChecked();
+    await expect
+      .poll(() => showcaseState(page), {
+        timeout: 5 * 60_000,
+        intervals: [1_000],
+      })
+      .toBe("menu");
+    await expect(menu.locator(".showcase-menu-status")).toHaveText(
+      "DataLab Web is ready.",
+    );
+
+    const ids = await menu
+      .locator("input[data-demo]")
+      .evaluateAll((inputs) =>
+        inputs.map((input) => (input as HTMLInputElement).dataset.demo ?? ""),
+      );
+    const skip = ids.filter((id) => id !== "w1").sort();
+    for (const id of skip) {
+      await menu.locator(`input[data-demo="${id}"]`).uncheck();
+    }
+    await menu.getByLabel("Pace").selectOption("fast");
+    await menu.getByLabel("Full screen").uncheck();
+    const kiosk = `/web-showcase/?demos=all&skip=${skip.join(",")}&speed=0.7&lang=en`;
+    await expect(menu.locator(".showcase-menu-link")).toHaveValue(
+      new URL(kiosk, page.url()).href,
+    );
+    await menu.getByRole("button", { name: "Start" }).click();
+
+    // The page URL is the kiosk link: a reload plays the same choices.
+    await expect(menu).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname + url.search === kiosk);
+    await expect(page.locator(".showcase-caption-text")).toBeVisible({
+      timeout: 4 * 60_000,
+    });
+    const status = await showcaseStatus(page);
+    expect(status.playlist).toEqual(["w1"]);
+    expect(status.options).toMatchObject({ skip, speed: 0.7, loop: false });
+
+    // The menu remembers the choices. A discarded frame never asks "leave
+    // the page?".
+    await page
+      .locator("iframe.app-frame")
+      .evaluate((frame: HTMLIFrameElement) => frame.remove());
+    await page.goto("/web-showcase/?lang=en");
+    await expect(menu.locator('input[data-demo="w1"]')).toBeChecked();
+    await expect(menu.locator('input[data-demo="w2"]')).not.toBeChecked();
+    await expect(menu.getByLabel("Pace")).toHaveValue("fast");
+    await expect(menu.getByLabel("Full screen")).not.toBeChecked();
   });
 });
