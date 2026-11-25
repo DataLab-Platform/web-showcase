@@ -98,17 +98,41 @@ describe("welcome menu", () => {
 
   it("enables Start while a listed demo is selected", () => {
     const { menu } = openMenu();
-    for (const scenario of NATIVE) change(demoBox(scenario.id), false);
+    menu.setDemos(ALL);
+    for (const scenario of ALL) change(demoBox(scenario.id), false);
     expect(startButton().disabled).toBe(true);
+    change(demoBox("app:org.example.app"), true);
+    expect(startButton().disabled).toBe(false);
+  });
+
+  it("waits for the application demos before Start and the kiosk link", async () => {
+    const { menu, calls } = openMenu();
+    const copy = $<HTMLButtonElement>(".showcase-menu-copy");
+    for (const scenario of NATIVE.slice(0, 3)) {
+      change(demoBox(scenario.id), false);
+    }
+    // Chosen now, the application demos would play although never shown.
+    expect(startButton().disabled).toBe(true);
+    expect(copy.disabled).toBe(true);
+    startButton().click();
+    expect(menu.isOpen).toBe(true);
+
     menu.setDemos(ALL);
     expect(startButton().disabled).toBe(false);
+    expect(copy.disabled).toBe(false);
+    expect(document.activeElement).toBe(startButton());
     change(demoBox("app:org.example.app"), false);
     change(demoBox("app:org.other.app"), false);
-    expect(startButton().disabled).toBe(true);
+    startButton().click();
+    await expect(menu.choice).resolves.toMatchObject({
+      skip: ["app:org.example.app", "app:org.other.app", "w1", "w2", "w3"],
+    });
+    expect(calls.urls).toHaveLength(1);
   });
 
   it("starts with the choices, remembered, the kiosk link as page URL", async () => {
     const { menu, calls } = openMenu({ excluded: ["app:gone"] });
+    menu.setDemos(ALL);
     change(demoBox("w2"), false);
     change(labelled("Loop"), true);
     change(labelled("Reload every"), "0");
@@ -144,7 +168,8 @@ describe("welcome menu", () => {
   });
 
   it("keeps the kiosk link in step, the reload period for a loop only", () => {
-    const { calls } = openMenu({ fullscreen: false, controls: false });
+    const { menu, calls } = openMenu({ fullscreen: false, controls: false });
+    menu.setDemos(ALL);
     expect((labelled("Control bar") as HTMLInputElement).checked).toBe(false);
     expect(link()).toBe(`${HOST}?demos=all&controls=0&lang=en`);
     change(labelled("Control bar"), true);
@@ -169,7 +194,8 @@ describe("welcome menu", () => {
   });
 
   it("asks to copy the link by hand when the clipboard is unavailable", async () => {
-    openMenu();
+    const { menu } = openMenu();
+    menu.setDemos(ALL);
     $<HTMLButtonElement>(".showcase-menu-copy").click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect($(".showcase-menu-copied").textContent).toBe(

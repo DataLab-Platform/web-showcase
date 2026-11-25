@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatElapsed, rateLabel } from "../../src/controls";
+import { ControlBar, formatElapsed, rateLabel } from "../../src/controls";
 import {
   FAST_FORWARD_FACTOR,
   PauseController,
@@ -222,5 +222,52 @@ describe("live pace", () => {
       "×2",
     ]);
     expect(formatElapsed(65_400)).toBe("1:05");
+  });
+});
+
+describe("control bar", () => {
+  it("orders its buttons as the DataLab desktop showcase", () => {
+    const noop = () => {};
+    const bar = new ControlBar(
+      {
+        pause: noop,
+        nextStep: noop,
+        nextDemo: noop,
+        restart: noop,
+        stop: noop,
+        cancelStop: noop,
+        slower: noop,
+        faster: noop,
+      },
+      () => ({
+        pause: "none",
+        stopPending: false,
+        pace: 1,
+        demo: 1,
+        total: 2,
+        title: "W1",
+        step: 1,
+        ending: false,
+        elapsedMs: 0,
+      }),
+    );
+    bar.setActive(true);
+    bar.show();
+    const groups = [
+      ...document.querySelectorAll(".showcase-controls-group"),
+    ].map((group) =>
+      [...group.querySelectorAll("button")].map((button) => button.title),
+    );
+    expect(groups).toEqual([
+      [
+        "Restart the demo (Home)",
+        "Pause (F9)",
+        "Next step (→)",
+        "Next demo (End)",
+      ],
+      ["Stop after this demo (Shift+F12)", "Cancel stop"],
+      ["Slower (−)", "Faster (+)"],
+    ]);
+    bar.destroy();
   });
 });

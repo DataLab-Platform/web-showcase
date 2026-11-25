@@ -8,7 +8,10 @@
  * shown), the native demos are listed immediately and the demos of the
  * application plugins once DataLab Web lists them (:meth:`setDemos`).
  * The choices are remembered (``./settings``); deselected demos are
- * remembered as such, so that a new demo is selected by default.
+ * remembered as such, so that a new demo is selected by default. Start and
+ * the kiosk link wait for the application demos: chosen before they are
+ * listed, the choices would play them although the operator never saw
+ * them.
  *
  * On Start, the page URL becomes the kiosk link of the choices: any reload
  * (every N loops, after an error, by the browser) plays them again without
@@ -132,12 +135,15 @@ export class WelcomeMenu implements ShowcaseSetup {
   private readonly controls: HTMLInputElement;
   private readonly language: HTMLSelectElement;
   private readonly link: HTMLInputElement;
+  private readonly copy: HTMLButtonElement;
   private readonly copyNote: HTMLSpanElement;
   private readonly status: HTMLDivElement;
   private readonly start: HTMLButtonElement;
   /** Ids of the deselected demos, listed or not (see ``./settings``). */
   private readonly excluded: Set<string>;
   private demos: DemoEntry[];
+  /** The application demos are listed (:meth:`setDemos`). */
+  private listed = false;
   private lastFocus: HTMLElement | null = null;
   private closed = false;
   private readonly onBlur = () => this.keepFocus();
@@ -241,12 +247,12 @@ export class WelcomeMenu implements ShowcaseSetup {
     this.link.type = "text";
     this.link.readOnly = true;
     this.link.spellcheck = false;
-    const copy = element("button", "showcase-menu-copy", t("Copy"));
-    copy.type = "button";
+    this.copy = element("button", "showcase-menu-copy", t("Copy"));
+    this.copy.type = "button";
     this.copyNote = element("span", "showcase-menu-copied");
     this.copyNote.setAttribute("aria-live", "polite");
     const linkRow = element("div", "showcase-menu-link-row");
-    linkRow.append(this.link, copy);
+    linkRow.append(this.link, this.copy);
     kiosk.append(
       field(t("Kiosk link"), linkRow),
       element(
@@ -277,7 +283,7 @@ export class WelcomeMenu implements ShowcaseSetup {
       event.preventDefault();
       this.onStart();
     });
-    copy.addEventListener("click", () => void this.copyLink());
+    this.copy.addEventListener("click", () => void this.copyLink());
     form.addEventListener("focusin", (event) => {
       this.lastFocus = event.target as HTMLElement;
     });
@@ -300,9 +306,15 @@ export class WelcomeMenu implements ShowcaseSetup {
   setDemos(scenarios: readonly ShowcaseScenario[]): void {
     if (this.closed) return;
     this.demos = scenarios.map(entry);
+    this.listed = true;
     this.demoNote.remove();
     this.renderDemos();
     this.update();
+    // Start could not take the focus while disabled.
+    const focused = document.activeElement;
+    if (!focused || focused === document.body) {
+      this.start.focus({ preventScroll: true });
+    }
   }
 
   close(): void {
@@ -373,11 +385,12 @@ export class WelcomeMenu implements ShowcaseSetup {
 
   /** Start, the kiosk link and the reload period follow the choices. */
   private update(): void {
-    this.start.disabled = !this.demos.some(
-      (demo) => !this.excluded.has(demo.id),
-    );
+    this.start.disabled =
+      !this.listed || !this.demos.some((demo) => !this.excluded.has(demo.id));
     this.reload.disabled = !this.loop.checked;
     this.link.value = this.kioskLink();
+    this.link.disabled = !this.listed;
+    this.copy.disabled = !this.listed;
     this.copyNote.textContent = "";
   }
 
