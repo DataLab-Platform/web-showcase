@@ -10,7 +10,7 @@ The showcase is a static page that shows DataLab Web full screen and plays scrip
 
 Opened without any playing parameter (`demos`, `skip`, `loop`, `speed`, `check`, `close`, `reload`, `controls`; `lang` and `app` still apply), the showcase shows a welcome menu, like the Showcase mode dialog of DataLab desktop (Plugins > DataLab Showcase):
 
-- **Demos** to play: the native demos are listed at once, the demos of the application plugins once DataLab Web lists them. DataLab Web starts behind the menu (its status is shown at the bottom), so that the demos start without waiting.
+- **Demos** to play: the native demos are listed at once, the demos of the application plugins once DataLab Web lists them. DataLab Web starts behind the menu (its status is shown at the bottom), so that the demos start without waiting. Start and the kiosk link are available once the demos of the application plugins are listed, so that none plays without having been shown.
 - **Loop**, with the page reload period (every N loops, `0` for never).
 - **Pace**: slow, normal or fast (the factors of DataLab desktop: `speed` 1.5, 1 and 0.7).
 - **Control bar** of the operator, shown when the mouse moves (uncheck it on an unattended booth).

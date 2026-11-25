@@ -327,7 +327,7 @@ html[data-showcase="idle"] .showcase-cursor {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 4px 6px;
+  gap: 4px 12px;
   padding: 6px 12px;
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.9);
@@ -606,7 +606,8 @@ html[data-showcase] .showcase-menu label:has(:disabled) {
   font-size: 14px;
 }
 
-.showcase-menu-sub:has(:disabled) {
+.showcase-menu-sub:has(:disabled),
+.showcase-menu-link-row:has(:disabled) {
   opacity: 0.5;
 }
 
