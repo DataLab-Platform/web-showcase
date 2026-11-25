@@ -89,7 +89,14 @@ export class ControlBar {
     this.root.className = "showcase-controls";
     this.root.setAttribute("role", "toolbar");
     this.root.setAttribute("aria-label", t("Showcase controls"));
+    // Same order as the control bar of the DataLab desktop showcase.
     const transport = this.group();
+    const restart = this.button(
+      transport,
+      "⏮︎",
+      hotkey(t("Restart the demo"), t("Home")),
+      () => actions.restart(),
+    );
     const pause = this.button(transport, "⏸︎", "", () => actions.pause());
     const nextStep = this.button(
       transport,
@@ -103,15 +110,10 @@ export class ControlBar {
       hotkey(t("Next demo"), t("End")),
       () => actions.nextDemo(),
     );
-    const restart = this.button(
-      transport,
-      "⏮︎",
-      hotkey(t("Restart the demo"), t("Home")),
-      () => actions.restart(),
-    );
-    const stop = this.button(transport, "", "", () => actions.stop());
+    const stopping = this.group();
+    const stop = this.button(stopping, "", "", () => actions.stop());
     const cancelStop = this.button(
-      transport,
+      stopping,
       t("Cancel stop"),
       t("Cancel stop"),
       () => actions.cancelStop(),

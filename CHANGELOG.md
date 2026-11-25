@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 (2026-11-25)
+
+### Fixed
+
+- **Welcome menu:** demos of application plugins (camera, pulse… characterization) no longer play when Start is pressed before the menu lists them: Start and the kiosk link are now available once DataLab Web has listed the application plugins (fixes [Issue #13](https://github.com/DataLab-Platform/web-showcase/issues/13)).
+- **Control bar:** the buttons follow the order of the DataLab desktop showcase: restart the demo, pause, next step and next demo, then the stop buttons and the pace, in separate groups (fixes [Issue #13](https://github.com/DataLab-Platform/web-showcase/issues/13)).
+
 ## 0.1.0 (2026-11-17)
 
 First release: the Showcase mode of DataLab Web, moved out of DataLab Web into a static host page served next to it (<https://datalab-platform.com/web-showcase/>).
